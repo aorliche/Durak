@@ -2,24 +2,7 @@ import math
 from functools import reduce
 from inspect import getmembers, isfunction
 import random
-
-class Card:
-	def __init__(self, rank=None, suit=None):
-		self.rank = Rank(rank)
-		self.suit = Suit(suit)
-
-	def __repr__(self):
-		if self != noCard:
-			return str(self.rank.value + 9*self.suit.value)
-		else:
-			return 'NoCard'
-
-	def __eq__(self, other):
-		return type(other) == Card and self.rank == other.rank and self.suit == other.suit
-
-	@staticmethod
-	def random():
-		return Card(random.randint(0,9), random.randint(0,3))
+from typing import Any
 
 class IntWrapper:
 	def __init__(self, value=None):
@@ -42,8 +25,55 @@ class Suit(IntWrapper):
 	def __init__(self, value=None):
 		super(Suit, self).__init__(value)
 
-def allSameRank(pile):
-    return reduce(lambda x,y: getRank(x) == getRank(y), pile, True)
+class Card:
+	def __init__(self, rank=None, suit=None):
+		self.rank = Rank(rank)
+		self.suit = Suit(suit)
+
+	def __repr__(self):
+		if self != NoCard:
+			return str(self.rank.value + 9*self.suit.value)
+		else:
+			return 'NoCard'
+
+	def __eq__(self, other):
+		return type(other) == Card and self.rank == other.rank and self.suit == other.suit
+
+	@staticmethod
+	def random():
+		return Card(random.randint(0,9), random.randint(0,3))
+
+NoCard = Card()
+
+class Board(list):
+	pass
+
+class Discard(list):
+	pass
+
+class Pair(list):
+	def __init__(self, under, over=NoCard):
+		super(Pair, self).__init__([under, over])
+
+class Hand(list):
+	pass
+
+class Deck(list):
+	pass
+
+class BaseGame:
+	pass
+
+class BaseAction:
+	pass
+
+class BasePlayer:
+	pass
+
+def allSameRank(pile: Hand|Board|Discard|Deck) -> bool:
+	if isinstance(pile, Board):
+		pile = flatten(pile)
+	return all(card.rank == pile[0].rank for card in pile)
 
 def beats(over: Card, under: Card, trump: Card) -> bool:
     if over.suit == under.suit:
@@ -52,105 +82,102 @@ def beats(over: Card, under: Card, trump: Card) -> bool:
         return True
     return False
 
-def contains(lst, elt):
-	if type(elt) == type(lst[0]) and type(elt) != list:
+def contains(lst: list, elt: Any) -> bool:
+	if type(elt) == type(lst[0]):
 		return lst.index(elt) != -1
 
-def count(pile):
+def count(pile: list) -> int:
     return len(pile)
 
-def getUncovered(board):
-    return [pair[0] for pair in board if pair[1] == None] 
-
-# def countBoard(game):
-#     return len([card for pair in game.board for card in pair])
-
-# def getUncoveredOnBoard(game):
-#     return [pair[0] for pair in game.board if pair[1] == None]
-
-def getAttacker(game):
+def getAttacker(game: BaseGame) -> BasePlayer:
     return game.attacker
 
-def getBoard(game):
+def getBoard(game: BaseGame) -> Board:
     return game.board
 
-def getCardA(action):
+def getCardA(action: BaseAction) -> Card:
     return action.card
 
-def getDefender(game):
+def getDefender(game: BaseGame) -> BasePlayer:
     return game.defender
 
-def getDefenderA(action):
+def getDefenderA(action: BaseAction) -> BasePlayer:
     return action.defender
 
-def getDiscard(game):
+def getDiscard(game: BaseGame) -> Discard:
     return game.discard
 
-def getIndex(lst, elt):
+def getIndex(lst: list, elt: Any) -> int:
 	if type(elt) == type(lst[0]):
 		return lst.index(elt)
 
-def getHand(player):
+def getHand(player: BasePlayer) -> Hand:
     return player.hand
 
 def getItem(lst: list, idx: int):
 	return lst[idx]
 
-# Special code in driver
-def getItemAny(lst: list):
-	return lst
+def getNoCard() -> Card:
+	return NoCard
 
-noCard = Card()
-
-def getNoCard():
-	return noCard
-
-def getPlayer(game, playerIdx):
-    return game.players[playerIdx]
-
-def getPlayerA(action):
+def getPlayerA(action: BaseAction) -> BasePlayer:
     return action.player
 
-def getRank(card):
+def getRank(card: Card) -> Rank:
 	return card.rank
 
-def getSuit(card):
+def getSuit(card: Suit) -> Suit:
 	return card.suit
 
-def getTargetA(action):
+def getTargetA(action: BaseAction) -> Card:
     return action.target
 
-def getTrump(game):
+def getTrump(game: BaseGame) -> Card:
     return game.trump
 
-def getVerbA(action):
+def getVerbA(action: BaseAction) -> str:
     return action.verb
 
-def hasRank(pile, card):
-    return not reduce(lambda x: getRank(x) != getRank(card), True)
+def getUncovered(board: Board) -> list[Card]:
+    return [pair[0] for pair in board if pair[1] == NoCard] 
 
-#def apply(helper, lst):
-#    return map(helper, lst)
+def hasRank(pile: Hand|Board|Discard|Deck, rank: Rank) -> bool:
+	if isinstance(pile, Board):
+		pile = flatten(pile)
+	return any(card.rank == rank for card in pile)
 
-#def contract(helper, lst, base):
-#    return reduce(helper, lst, base)
+def isPositive(num: int|float) -> bool:
+    return num > 0
 
-def isPositive(num):
-    return num > 0 and type(num) != type(True)
-
-def isZero(num):
+def isZero(num: int|float) -> bool:
     return eq(num, 0)
 
-def lessThan(less, greater):
-    return less < greater and type(less) != type(True) and type(greater) != type(True)
+def lessThan(less: int|float, greater: int|float) -> bool:
+    return less < greater
 
 def makeVerbCheck(verb):
-    return lambda v: v == verb
+	def verbCheckFn(cand: str) -> bool:
+		return cand == verb
+	return verbCheckFn
 
 verbChecks = [makeVerbCheck(verb) for verb in ['cover', 'play', 'reverse', 'pickup', 'pass']]
 
 def eq(a, b):
-	return a == b and type(a) == type(b)
+	if type(a) == bool or type(b) == bool:
+		return a == b and type(a) == type(b)
+	else:
+		return a == b
+
+def allowType(obj, typ):
+	if typ == Any:
+		return True
+	elif type(obj) == bool:
+		return typ == bool
+	else:
+		return isinstance(obj, typ)
+
+def flatten(board):
+	return [card for pair in board for card in pair if card is not NoCard]
 
 # Rules
 
@@ -177,6 +204,6 @@ class TakeAction(Rule):
 rules = [TakeAction()]
 
 def getFunctions(module, rules=True):
-	blacklist = [eq, makeVerbCheck, getFunctions, reduce, getmembers, isfunction]
+	blacklist = [flatten, allowType, eq, makeVerbCheck, getFunctions, reduce, getmembers, isfunction]
 	res = [b for a,b in getmembers(module, isfunction) if b not in blacklist]
 	return res + verbChecks
