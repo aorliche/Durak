@@ -12,36 +12,36 @@ class IntWrapper:
 		return self.value > other.value
 
 	def __eq__(self, other):
-		return self.value == other.value
+		return isinstance(other, IntWrapper) and self.value == other.value
 
 	def __lt__(self, other):
 		return not (self > other and self == other)
 
 class Rank(IntWrapper):
-	def __init__(self, value=None):
-		super(Rank, self).__init__(value)
+    def __init__(self, value=None):
+        super(Rank, self).__init__(value)
 
 class Suit(IntWrapper):
-	def __init__(self, value=None):
-		super(Suit, self).__init__(value)
+    def __init__(self, value=None):
+        super(Suit, self).__init__(value)
 
 class Card:
-	def __init__(self, rank=None, suit=None):
-		self.rank = Rank(rank)
-		self.suit = Suit(suit)
+    def __init__(self, rank=None, suit=None):
+        self.rank = Rank(rank)
+        self.suit = Suit(suit)
 
-	def __repr__(self):
-		if self != NoCard:
-			return str(self.rank.value + 9*self.suit.value)
-		else:
-			return 'NoCard'
+    def __repr__(self):
+        if self != NoCard:
+            return str(self.rank.value + 9*self.suit.value)
+        else:
+            return 'NoCard'
 
-	def __eq__(self, other):
-		return type(other) == Card and self.rank == other.rank and self.suit == other.suit
+    def __eq__(self, other):
+        return type(other) == Card and self.rank == other.rank and self.suit == other.suit
 
-	@staticmethod
-	def random():
-		return Card(random.randint(0,9), random.randint(0,3))
+    @staticmethod
+    def random():
+        return Card(random.randint(0,9), random.randint(0,3))
 
 NoCard = Card()
 
@@ -69,6 +69,13 @@ class BaseAction:
 
 class BasePlayer:
 	pass
+    
+class MetaSubroutine:
+    def __init__(self, sub):
+        self.sub = sub    
+        
+    def __call__(self, arg):
+        return self.sub.partial(arg)
 
 def allSameRank(pile: Hand|Board|Discard|Deck) -> bool:
 	if isinstance(pile, Board):
@@ -88,6 +95,18 @@ def contains(lst: list, elt: Any) -> bool:
 
 def count(pile: list) -> int:
     return len(pile)
+
+def equal(a: Any, b: Any) -> bool:
+	if type(a) == bool or type(b) == bool:
+		return a == b and type(a) == type(b)
+	else:
+		return a == b
+    
+def flatten(board: Board) -> Board:
+	return [card for pair in board for card in pair if card != NoCard]
+    
+def filter(lst: list, sub: MetaSubroutine, arg: Any) -> list:
+    return [elt for elt in lst if equal(sub(elt), arg)]
 
 def getAttacker(game: BaseGame) -> BasePlayer:
     return game.attacker
@@ -114,11 +133,8 @@ def getIndex(lst: list, elt: Any) -> int:
 def getHand(player: BasePlayer) -> Hand:
     return player.hand
 
-def getItem(lst: list, idx: int):
+def getItem(lst: list, idx: int) -> Any:
 	return lst[idx]
-
-def getNoCard() -> Card:
-	return NoCard
 
 def getPlayerA(action: BaseAction) -> BasePlayer:
     return action.player
@@ -150,60 +166,39 @@ def isPositive(num: int|float) -> bool:
     return num > 0
 
 def isZero(num: int|float) -> bool:
-    return eq(num, 0)
+    return equal(num, 0)
 
 def lessThan(less: int|float, greater: int|float) -> bool:
     return less < greater
+    
+def makeConcept(name, value=None):
+    def fn():
+        return value if value is not None else name
+    fn.__name__ = name
+    return fn
 
-def makeVerbCheck(verb):
-	def verbCheckFn(cand: str) -> bool:
-		return cand == verb
-	return verbCheckFn
-
-verbChecks = [makeVerbCheck(verb) for verb in ['cover', 'play', 'reverse', 'pickup', 'pass']]
-
-def eq(a, b):
-	if type(a) == bool or type(b) == bool:
-		return a == b and type(a) == type(b)
-	else:
-		return a == b
+concepts = [
+    makeConcept('Spades', Suit(0)),
+    makeConcept('Hearts', Suit(1)),
+    makeConcept('Diamonds', Suit(2)),
+    makeConcept('Clubs', Suit(3)),
+    makeConcept('NoCard', NoCard),
+    makeConcept('Cover'),
+    makeConcept('Play'),
+    makeConcept('Reverse'),
+    makeConcept('Pickup'),
+    makeConcept('Pass')
+]
 
 def allowType(obj, typ):
-	if typ == Any:
-		return True
-	elif type(obj) == bool:
-		return typ == bool
-	else:
-		return isinstance(obj, typ)
-
-def flatten(board):
-	return [card for pair in board for card in pair if card is not NoCard]
-
-# Rules
-
-class Rule:
-	def __init__(self):
-		self.expected = []
-		self.seqs = []
-
-	def __call__(self, query):
-		results = []
-		for s in self.seqs:
-			s.clean()
-			s.bind(query.params)
-			results.append(s())
-		return results
-
-	def filter(seq):
-		pass
-
-class TakeAction(Rule):
-	def filter(seq):
-		return type(seq.res) == bool
-
-rules = [TakeAction()]
+    if typ == Any:
+        return True
+    elif type(obj) == bool:
+        return typ == bool
+    else:
+        return isinstance(obj, typ)
 
 def getFunctions(module, rules=True):
-	blacklist = [flatten, allowType, eq, makeVerbCheck, getFunctions, reduce, getmembers, isfunction]
-	res = [b for a,b in getmembers(module, isfunction) if b not in blacklist]
-	return res + verbChecks
+	blacklist = [allowType, makeConcept, getFunctions, reduce, getmembers, isfunction]
+	fns = [b for a,b in getmembers(module, isfunction) if b not in blacklist]
+	return fns + concepts
