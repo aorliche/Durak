@@ -90,17 +90,17 @@ def beats(over: Card, under: Card, trump: Card) -> bool:
     return False
 
 def contains(lst: list, elt: Any) -> bool:
-	if type(elt) == type(lst[0]):
-		return lst.index(elt) != -1
+    if len(lst) == 0:
+        return False
+    typeProtect(lst[0], elt)
+    return elt in lst
 
 def count(pile: list) -> int:
     return len(pile)
 
 def equal(a: Any, b: Any) -> bool:
-	if type(a) == bool or type(b) == bool:
-		return a == b and type(a) == type(b)
-	else:
-		return a == b
+    typeProtect(a, b)
+    return eq(a,b)
     
 def flatten(board: Board) -> Board:
 	return [card for pair in board for card in pair if card != NoCard]
@@ -127,8 +127,13 @@ def getDiscard(game: BaseGame) -> Discard:
     return game.discard
 
 def getIndex(lst: list, elt: Any) -> int:
-	if type(elt) == type(lst[0]):
-		return lst.index(elt)
+    if len(lst) == 0:
+        return -1
+    typeProtect(lst[0], elt)
+    try:
+        return lst.index(elt)
+    except:
+        return -1
 
 def getHand(player: BasePlayer) -> Hand:
     return player.hand
@@ -197,8 +202,25 @@ def allowType(obj, typ):
         return typ == bool
     else:
         return isinstance(obj, typ)
+        
+class TypeProtectionException(Exception):
+    def __init__(self):
+        super().__init__()
+        
+    def __repr__(self):
+        return 'Type protection: a and b are not compatible'
+
+def typeProtect(a, b):
+    if not isinstance(a, type(b)) and not isinstance(b, type(a)):
+        raise TypeProtectionException()
+        
+def eq(a, b):
+    if type(a) == bool or type(b) == bool:
+        return a == b and type(a) == type(b)
+    else:
+        return a == b
 
 def getFunctions(module, rules=True):
-	blacklist = [allowType, makeConcept, getFunctions, reduce, getmembers, isfunction]
+	blacklist = [eq, typeProtect, allowType, makeConcept, getFunctions, reduce, getmembers, isfunction]
 	fns = [b for a,b in getmembers(module, isfunction) if b not in blacklist]
 	return fns + concepts
