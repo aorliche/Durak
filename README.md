@@ -18,8 +18,13 @@ Attempt to make a card-playing AI agent
 ### Old Python Code
 
 primitives: 
+
     - duraksub.py
+
 old combinatorial search: 
+
     - DurakClassic.ipynb
+
 active learning (+ combinatorial search):
+
     - Durak1ActiveLearning.ipynb
