@@ -19,12 +19,12 @@ Attempt to make a card-playing AI agent
 
 primitives: 
 
-    - duraksub.py
+- duraksub.py
 
 old combinatorial search: 
 
-    - DurakClassic.ipynb
+- DurakClassic.ipynb
 
 active learning (+ combinatorial search):
 
-    - Durak1ActiveLearning.ipynb
+- Durak1ActiveLearning.ipynb
