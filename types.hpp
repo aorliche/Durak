@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <type_traits>
 #include <memory>
+#include <iostream>
 
 using namespace std;
 
@@ -15,13 +16,20 @@ using namespace std;
 struct Concept {
     string name;
     Concept(const string &n) : name(n) {}
+    Concept();
     virtual bool operator==(const Concept &other) const {
         return other.name == name;
     }
     virtual bool operator!=(const Concept &other) const {
         return !(*this == other);
     }
+    friend ostream& operator<<(ostream &os, const Concept &c);
 };
+
+ostream &operator<<(ostream &os, const Concept &c) {
+    os << c.name;
+    return os;
+}
 
 struct List;
 
@@ -49,8 +57,9 @@ Object na("Not Applicable");
 Object yes("Yes");
 Object no("No");
 
-struct Game;
+Concept::Concept() : name(null.name) {}
 
+struct Game;
 typedef Object (*ActionFn)(vector<Object>&, Game &);
 
 // An action takes objects as arguments and returns some value

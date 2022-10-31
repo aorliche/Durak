@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <memory>
 #include <cstdlib>
+#include <iostream>
 
 using namespace std;
 
@@ -34,12 +35,11 @@ Concept player("Player");
 struct Card : public Object {
     Concept suit;
     Concept rank;
-    Card(const string &name = "NoCard", const Concept &s = null, const Concept &r = null) 
-        : Object(name), suit(s), rank(r) {
+    Card(const Concept &r = null, const Concept &s = null) : Object("Card"), rank(r), suit(s) {
         relations.push_back(Relation("is", *this, card));
     }
-    Card(Concept &s, Concept &r) : Card("Card", s, r) {}
-    Card(const Card &card) : Card("Card", card.suit, card.rank) {}
+    Card(const string &r, const string &s) : Card(Concept(r), Concept(s)) {}
+    Card(const Card &card) : Card(card.rank, card.suit) {}
     virtual bool operator==(const Card &other) const {
         return suit == other.suit && rank == other.rank;
     }
@@ -51,7 +51,17 @@ struct Card : public Object {
         rank = other.rank;
         return *this;
     }
+    friend ostream& operator<<(ostream &os, const Card &c);
 };
+
+ostream &operator<<(ostream &os, const Card &c) {
+    if (c.rank == null && c.suit == null) {
+        os << "NoCard";
+    } else {
+        os << c.rank << " of " << c.suit;
+    }
+    return os;
+}
 
 Card NoCard;
 
@@ -106,8 +116,8 @@ struct Hand : public Object {
         Relation r = Relation("is", *this, hand);
         relations.push_back(r);
     }
-    void add(string &suit, string &rank) {
-        cards.push_back(Card(suit, rank));
+    void add(const string &rank, const string &suit) {
+        cards.push_back(Card(rank, suit));
     }
     virtual List inspect() {
         /*vector<Object*> list;
@@ -129,12 +139,12 @@ struct Hand : public Object {
 struct Board : public Object {
     vector<Card> plays;
     vector<Card> covers;
-    Board(const string &n) : Object("Board") {
+    Board() : Object("Board") {
         Relation r = Relation("is", *this, board);
         relations.push_back(r);
     }
-    void cover(Object &card1, Object &card2) {
-        Card &c2 = dynamic_cast<Card&>(card2);
+    void cover(const Object &card1, const Object &card2) {
+        const Card &c2 = dynamic_cast<const Card&>(card2);
         int idx = indexOf(plays, c2);
         if (idx == -1) 
             throw na;
@@ -146,8 +156,8 @@ struct Board : public Object {
         //return List(vector{new List(listify(plays)), new List(listify(covers))});
         return List(vector{make_shared<List>(plays), make_shared<List>(covers)});
     }
-    void play(Object &card) {
-        plays.push_back(dynamic_cast<Card&>(card));
+    void play(const Object &card) {
+        plays.push_back(dynamic_cast<const Card&>(card));
         covers.resize(plays.size(), NoCard);
     }
 };
@@ -156,6 +166,7 @@ struct Game : public Object {
     Concept trump;
     Hand hand;
     Board board;
+    Game() : Object("Game") {}
 };
 
 Object higherRank(Object &card1, Object &card2) {
