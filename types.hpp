@@ -5,23 +5,68 @@
 #include <type_traits>
 #include <memory>
 #include <iostream>
+#include <unordered_map>
+#include <multimap>
+#include <functional>
 
 using namespace std;
 
-// A concept can be 
-// 0. an abstract idea
-// 1. an object
-// 2. an action
-// 3. a relation between objects
+
+// 0. objects are the base class
+// 1. concepts are singleton objects
+// 2. an action changes state or returns something
+// 3. a relation exists between two objects
+
+struct Concept;
+
+struct Object {
+    static int idcount;
+    int id;
+    Object() : id(idcount++) {}
+    Object(const string &type);
+    virtual bool operator==(const Object &other) const {
+        return other.id == uniqid;
+    }
+    virtual bool operator!=(const Object &other) const {
+        return !(*this == other);
+    }
+    // For compatibility with list and get return
+    virtual Object *&operator[](int idx) const {
+        return &this;
+    }
+    Object *get2(const Concept &c1, const Concept &c2) {
+        return this->get(c1)->[0]->get(c2);
+    }
+    void make(const Concept &c);
+    void give(const Object &o);
+    Object *get(const Concept &c);
+    void remove(const Object &o);
+    bool is(const Concept &c) const;
+};
+int Object::idcount = 0;
+
+template<>
+struct hash<Object> {
+    size_t operator(const Object &o) {
+        return hash<int>{}(o.id);
+    }
+}
+
+// A concept name map enforces single concept instance limit
+// Concepts live in the concept_map
+unordered_map<string,Concept> concept_map;
+
+// Convenience "is" and "has" maps for objects->concepts and objects->objects, respectively
+// Objects don't live here
+multimap<Object,Concept*> is_map;
+multimap<Object,Object*> has_map;
+
 struct Concept {
     string name;
-    Concept(const string &n) : name(n) {}
-    Concept();
-    virtual bool operator==(const Concept &other) const {
-        return other.name == name;
-    }
-    virtual bool operator!=(const Concept &other) const {
-        return !(*this == other);
+    Concept(const string &n, bool insert = true) : name(n) {
+        if (insert) {
+            concept_map[name] = *this;
+        }
     }
     friend ostream& operator<<(ostream &os, const Concept &c);
 };
@@ -31,75 +76,94 @@ ostream &operator<<(ostream &os, const Concept &c) {
     return os;
 }
 
-struct List;
+Concept null("null");            // null object
+Concept na("not applicable");    // exception
+Concept yes("yes");              // true
+Concept no("no");                // false
 
-struct Object : public Concept {
-    static int idcounter;
-    int uniqid;
-    Object(const string &n) : Concept(n), uniqid(idcounter++) {}
-    virtual bool operator==(const Object &other) const {
-        return other.uniqid == uniqid;
-    }
-    virtual bool operator!=(const Object &other) const {
-        return !(*this == other);
-    }
-    // Get object properties
-    [[noreturn]] virtual List inspect();
-};
-int Object::idcounter = 0;
-
-struct ConceptWrap : public Object {
-    ConceptWrap(const Concept &c) : Object(c.name) {}
-};
-
-Object null("Null");
-Object na("Not Applicable");
-Object yes("Yes");
-Object no("No");
-
-Concept::Concept() : name(null.name) {}
-
-struct Game;
-typedef Object (*ActionFn)(vector<Object>&, Game &);
+typedef Object (*ActionFn)(vector<Object>&, Object *);
 
 // An action takes objects as arguments and returns some value
-struct Action : public Object {
-    vector<Object*> args;
+struct Action : public Concept {
+    Concept *res_type;
+    vector<Concept*> arg_types;
+    vector<Action*> children;
     ActionFn fn;
-    Action(const string &n, ActionFn f) : Object(n), fn(f) {}
+    Action(const string &n, const Concept *rt, const vector<Concept*> ats, ActionFn f) 
+        : Concept(n), res_type(rt), args_types(at), fn(f) {}
 };
 
 // A relation between two objects
 struct Relation : public Object {
-    Concept from;
-    Concept to;
-    Relation(const string &n, Concept f, Concept t) : Object(n), from(f), to(t) {}
+    Object &from;
+    Object &to;
+    Relation(const string &name, Object f, Object t) : from(f), to(t) {
+        Concept(name);
+    }
 };
 
 vector<Relation> relations;
 
-// List workhorse
-Concept list("List");
+void Object::make(const Concept &c) {
+    is_map.insert({*this,&c});
+}
 
+void Object::give(const Object &o) {
+    has_map.insert({*this,&o});
+}
+
+void Object::remove(const Object &o) {
+    has_map.erase(o);
+}
+
+bool Object::is(const Concept &c) const {
+    return is_map[*this] == is_map[c];
+}
+
+// Convenience
 struct List : public Object {
-    vector<shared_ptr<Object>> items;
-    List(const vector<shared_ptr<Object>> &objs = vector<shared_ptr<Object>>()) : Object("List"), items(objs) {
-        relations.push_back(Relation("is", *this, list));
+    vector<Object *> objects;
+    List() {
+        this->is("list");
     }
-    template<typename T, typename enable_if<is_base_of<Object, T>::value>::type* = nullptr>
-    List(const vector<T> &vec) : Object("List") {
-        for (const T &t : vec) {
-            items.push_back(make_shared<T>(t));
+    virtual bool operator==(const List &other) const {
+        if (objects.size() != other->objects.size()) {
+            return false;
         }
-    }
-    template<typename T, typename enable_if<is_base_of<Object, T>::value>::type* = nullptr>
-    List(const vector<shared_ptr<T>> &vec) : Object("List") {
-        for (const shared_ptr<T> &t : vec) {
-            items.push_back(t);
+        for (int i=0; i<objects.size() && i<other->objects.size(); i++) {
+            if (objects[i] != other->objects[i]) {
+                return false;
+            }
         }
+        return true;
     }
-};
+    virtual bool operator!=(const List &other) const {
+        return !(*this == other);
+    }
+    virtual Object *&operator[](int idx) const {
+        if (idx < 0 || idx >= objects.size()) {
+            throw na;
+        }
+        return objects[idx];
+    }
+}
 
-[[noreturn]] List Object::inspect() {
-    throw na;
+// Get object properties
+Object *get(const Concept &c) {
+    int count = has_map.count(*this);
+    if (count == 0) {
+        return &null;
+    }
+    auto range = has_map.equal_range(*this);
+    auto lst = make_shared<List>();
+    for (auto i = range.first; i != range.second; i++) {
+        if (i->is(c)) {
+            lst->objects.push_back(i);
+        }
+    }
+    return lst;
+}
+
+Object::Object(const string &type) : id(idcount++) {
+    this->make(type);
 }
