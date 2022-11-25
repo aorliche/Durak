@@ -5,212 +5,249 @@
 #include <memory>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 
 using namespace std;
 
+int NO_RANK = -1;
+
 struct Rank : public Object {
-    string rank;
-    Rank(const string &r) : Object("rank"), rank(r) {}
+    static vector<string> ranks;
+    static unordered_map<int,int> rank_map;
+    Rank(const string &r = "") : Object("rank") {
+        if (r.length() == 0) {
+            rank_map[id] = NO_RANK;
+            return;
+        }
+        for (size_t i=0; i<ranks.size(); i++) {
+            if (ranks[i] == r) {
+                rank_map[id] = i;
+                return;
+            }
+        }
+    }
+    Rank(const Object &o) : Object(o.id) {}
     bool operator==(const Rank &other) const {
-        return rank == other.rank;
+        return rank_map[id] == rank_map[other.id];
     }
     bool operator!=(const Rank &other) const {
         return !(*this == other);
     }
-    bool operator>(const Rank &other) const;
-    bool operator<(const Rank &other) const;
+    bool operator>(const Rank &other) const {
+        return rank_map[id] > rank_map[other.id];
+    }
+    bool operator<(const Rank &other) const {
+        return rank_map[id] < rank_map[other.id];
+    }
+};
+
+vector<string> Rank::ranks = {"6", "7", "8", "9", "10", "Jack", "Queen", "King", "Ace"};
+unordered_map<int,int> Rank::rank_map;
+
+ostream & operator<<(ostream &os, const Rank &r) {
+    return os << Rank::ranks[Rank::rank_map[r.id]];
 }
 
+int NO_SUIT = -1;
+
 struct Suit : public Object {
-    string suit;
-    Rank(const string &s) : Object("suit"), suit(s) {}
+    static vector<string> suits;
+    static unordered_map<int,int> suit_map;
+    Suit(const string &s = "") : Object("suit") {
+        if (s.length() == 0) {
+            suit_map[id] = NO_RANK;
+            return;
+        }
+        for (size_t i=0; i<suits.size(); i++) {
+            if (suits[i] == r) {
+                suit_map[id] = i;
+                return;
+            }
+        }
+    }
+    Suit(const Object &o) : Object(o.id) {}
     bool operator==(const Suit &other) const {
-        return suit == other.suit;
+        return suit_map[id] == suit_map[other.id];
     }
     bool operator!=(const Suit &other) const {
         return !(*this == other);
     }
-}
-
-vector<Rank> ranks = {
-    Rank("6"),
-    Rank("7"),
-    Rank("8"),
-    Rank("9"),
-    Rank("10"),
-    Rank("Jack"),
-    Rank("Queen"),
-    Rank("King"),
-    Rank("Ace")
 };
 
-bool Rank::operator>(const Rank &other) {
-    for (auto it = ranks.begin(); it != ranks.end(); it++) {
-        if (*it == *this && *it != other) {
-            return false;
-        } else if (*it == *this && *it == other) {
-            return false;
-        } else if (*it == other) {
-            return true;
-        }
-    }
-}
+vector<string> Suit::suits = {"Hearts", "Diamonds", "Spades", "Clubs"};
+unordered_map<int,int> Suit::suit_map;
 
-bool Rank::operator<(const Rank &other) {
-    return !(*this > other) && this != other;
+ostream & operator<<(ostream &os, const Suit &s) {
+    return os << Suit::suits[Suit::suit_map[s.id]];
 }
-
-vector<Suit> suits = {
-    Suit("Hearts"),
-    Suit("Diamonds"),
-    Suit("Spades"),
-    Suit("Clubs")
-};
 
 struct Card : public Object {
-    static Object no_rank("rank");
-    static Object no_suit("suit");
-    static Object no_card("card");
-    Card(const Object &rank = no_rank, const Object &suit = no_suit) : Object("card") {
-        this->give(rank);
-        this->give(suit);
+    static Card no_card;
+    Card(const string &rank = "", const string &suit = "") : Object("card") {
+        give(Rank(rank));
+        give(Suit(suit));
     }
-    Card(const string &r, const string &s) : Card(Rank(r), Suit(s)) {}
+    Card(const Object &o) : Object(o.id) {}
     // Overload equals operator
     virtual bool operator==(const Card &other) const {
-        return this.get("suit") == other.get("suit") 
-            && this.get("rank") == other.get("rank");
+        return get("suit") == other.get("suit") && get("rank") == other.get("rank");
     }
     virtual bool operator!=(const Card &other) const {
         return !(*this == other);
     }
     // To string
-    friend ostream& operator<<(ostream &os, const Card &c);
+    friend ostream& operator<<(ostream &os, shared_ptr<Card> c);
 };
 
+Object Card::no_card;
+
 ostream &operator<<(ostream &os, const Card &c) {
-    if (c.get("rank") == no_rank && c.get("suit) == no_suit) {
-        os << "NoCard";
+    if (c == Card::no_card) {
+        os << "No Card";
     } else {
-        os << c.get("rank") << " of " << c.get("suit");
+        os << Rank(c.get("rank")) << " of " << Suit(c.get("suit"));
     }
     return os;
 }
 
 struct Pile : public List {
-    Pile(const string &type) : Object(type) {
-        this->make("pile");
+    Pile(const string &type) : List() {
+        make("pile");
+        make(type);
     }
+    Pile(const Object &o) : Object(o.id) {}
     void add(const string &rank, const string &suit) {
-        this->give(make_shared<Card>(rank, suit));
+        add(Card(rank, suit));
+    }
+    void add(Card c) {
+        List::add(cp);
+    }
+    Concept get_type() const {
+        auto pair = is_map.equal_range(id);
+        for (; pair.first != pair.second; pair.first++) {
+            if (!pair.first->is("list") && !pair.first->is("pile")) {
+                return *pair.first;
+            }
+        }
+        return nullobj;
     }
 };
 
-struct Board : public Object {
-    Board() {
-        this->is("board");
-        this->give(make_shared<Pile>("plays"));
-        this->give(make_shared<Pile>("covers"));
+ostream &operator<<(ostream &os, const Pile &p) {
+    auto lst = list_map[p.id];
+    cout << p.get_type() << ":" << endl;
+    for (size_t i=0; i<lst.size(); i++) {
+        cout << Card(lst[i]) << endl;
     }
-    void cover(const Object &card1, const Object &card2) {
-        List &plays = get("plays");
-        List &covers = get("covers");
-        int idx = plays.index_of(card2);
+}
+
+struct Board : public Object {
+    Board(const Object &o) : Object(o.id) {}
+    Board() {
+        make("board");
+        give(Pile("plays"));
+        give(Pile("covers"));
+    }
+    void cover(Card c1, Card c2) {
+        List plays = List(get("plays"));
+        List covers = List(get("covers"));
+        int idx = plays.index_of(c2);
         if (idx == -1) 
             throw na;
-        if (covers[idx] != Card::no_card)
+        if (Card(covers[idx]) != Card::no_card)
             throw na;
-        covers[idx] = card1;
+        covers[idx] = c1;
     }
-    void play(const Object &card) {
-        get("plays").add(&card)
-        get("covers").add(Card::no_card);
+    void play(shared_ptr<Card> card) {
+        List &plays = dynamic_cast<List&>(*get("plays"));
+        List &covers = dynamic_cast<List&>(*get("covers"));
+        plays.add(card);
+        covers.add(Card::no_card);
     }
 };
 
 struct Game : public Object {
     Game() : Object("game") {
         give(make_shared<Board>());
-        give(make_shared<Hand>());
+        give(make_shared<Pile>("hand"));
     }
 };
 
-# define MAKEACTION(a) Action a##_act(#a, a)
+# define MAKEACTION(a,ret,args) Action a##_action(#a,ret,args,a)
 
 // Composition functions
-Object *higher_rank(List &args, Game &game) {
-    Rank &r1 = dynamic_cast<Rank&>(args[0]->get("rank"));
-    Rank &r2 = dynamic_cast<Rank&>(args[1]->get("rank"));
+shared_ptr<Object> higher_rank(List &args, Object &game) {
+    Rank &r1 = dynamic_cast<Rank&>(*args[0]->get("rank"));
+    Rank &r2 = dynamic_cast<Rank&>(*args[1]->get("rank"));
     if (r1 > r2) {
-        return &yes;
+        return yes;
     } 
-    return &no;
+    return no;
 }
-MAKEACTION(higher_rank);
+MAKEACTION(higher_rank, "boolean", (vector<string>{"rank", "rank"}));
 
-Object *beats(List &args, Object &game) {
-    Suit &s0 = args[0]->get("suit");
-    Suit &s1 = args[1]->get("suit");
-    Suit &ts = game.get("trump").get("suit");
+shared_ptr<Object> beats(List &args, Object &game) {
+    Suit &s0 = dynamic_cast<Suit&>(*args[0]->get("suit"));
+    Suit &s1 = dynamic_cast<Suit&>(*args[1]->get("suit"));
+    Suit &ts = dynamic_cast<Suit&>(*game.get("trump"));
     if (s0 == ts && s1 != ts) {
-        return &yes;
+        return yes;
     } else if (s1 == ts) {
-        return &no;
+        return no;
     }
     return higher_rank(args, game);
 }
-MAKEACTION(beats);
+MAKEACTION(beats, "boolean", (vector<string>{"card", "card"}));
 
-Object *cover(List &args, Game &game) {
-    Card &c1 = dynamic_cast<Card&>(args[0]);
-    Card &c2 = dynamic_cast<Card&>(args[1]);
-    Hand &h = dynamic_cast<Hand&>(game.get("hand"));
-    Board &b = dynamic_cast<Board&>(board.get("board"));
-    h.remove(c1);
-    board.cover(c1, c2);
-    return &null;
+shared_ptr<Object> cover(List &args, Object &game) {
+    Pile &hand = dynamic_cast<Pile&>(*game.get("hand"));
+    Board &board = dynamic_cast<Board&>(*game.get("board"));
+    hand.remove(args[1]);
+    board.cover(args[0], args[1]);
+    return nullobj;
 }
-MAKEACTION(cover);
+MAKEACTION(cover, "null", (vector<string>{"card", "card"}));
 
-Object *get_item(List &args, Game &game) {
-    List &lst = dynamic_cast<List&>(args[0]);
-    Number &num = dynamic_cast<Number&>(args[1]);
-    return &lst[num.val]
+shared_ptr<Object> get_item(List &args, Object &game) {
+    List &lst = dynamic_cast<List&>(*args[0]);
+    Number &num = dynamic_cast<Number&>(*args[1]);
+    return lst[num.val];
 }
-MAKEACTION(get_item);
+MAKEACTION(get_item, "object", (vector<string>{"list", "number"}));
 
-Object *get_size(List &args, Game &game) {
-    List &lst = dynamic_cast<List&>(args[0]);
+shared_ptr<Object> get_size(List &args, Object &game) {
+    List &lst = dynamic_cast<List&>(*args[0]);
     return make_shared<Number>(lst.size());
 }
-MAKEACTION(get_size);
+MAKEACTION(get_size, "number", (vector<string>{"list"}));
 
-Object *randint(List &args, Game &game) {
-    Number &num = dynamic_cast<Number&>(args[0]);
+shared_ptr<Object> randint(List &args, Object &game) {
+    Number &num = dynamic_cast<Number&>(*args[0]);
     return make_shared<Number>(rand()%num.val);
 }
-MAKEACTION(randint);
+MAKEACTION(randint, "number", (vector<string>{"number"}));
 
-Object *do_nothing(List &args, Game &game) {
-    return &null;
+shared_ptr<Object> do_nothing(List &args, Object &game) {
+    return nullobj;
 }
-MAKEACTION(do_nothing);
+MAKEACTION(do_nothing, "null", (vector<string>{}));
 
-Object *get_trump(List &args, Game &game) {
-    return &game.get("trump");
+shared_ptr<Object> get_trump(List &args, Object &game) {
+    return game.get("trump");
 }
-MAKEACTION(get_trump);
+MAKEACTION(get_trump, "suit", (vector<string>{}));
 
-Object *get_suit(List &args, Game &game) {
-    return &args[0].get("suit");
+shared_ptr<Object> get_suit(List &args, Object &game) {
+    return args[0]->get("suit");
 }
-MAKEACTION(get_suit);
+MAKEACTION(get_suit, "suit", (vector<string>{"card"}));
 
-Object *get_board(vector<Object> &args, Game &game) {
-    return &game.get("board");
+shared_ptr<Object> get_board(List &args, Object &game) {
+    return game.get("board");
 }
+MAKEACTION(get_board, "board", (vector<string>{}));
 
-Object get_hand(vector<Object> &args, Game &game) {
-    return &game.get("hand");
+shared_ptr<Object> get_hand(List &args, Object &game) {
+    return game.get("hand");
 }
-MAKEACTION(get_hand);
+MAKEACTION(get_hand, "hand", (vector<string>{}));
