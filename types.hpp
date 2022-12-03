@@ -59,8 +59,6 @@ struct Concept : public Object {
     friend ostream& operator<<(ostream &os, const Concept &c);
 };
 
-int History::idcount = 0; 
-
 // The set of all concepts
 set<string> concepts;
 
@@ -69,8 +67,8 @@ set<string> concepts;
 unordered_map<int,string> name_map;
 unordered_map<string,int> rev_name_map;
 
-// Don't use -1 because that's a default in History
-int CONCEPT_OJBECT_ID = -2;
+// Concept of concepts
+int CONCEPT_ID = -1;
 
 // "list" map for lists
 unordered_map<int,vector<Object>> list_map;
@@ -80,65 +78,18 @@ unordered_map<int,vector<Object>> list_map;
 multimap<int,int> is_map;
 multimap<int,int> has_map;
 
+ostream &operator<<(ostream &os, const Concept &c) {
+    os << name_map[c.id];
+    return os;
+}
+
+// Only for the static initializer
 struct ConceptInit {
     ConceptInit() {
         name_map[CONCEPT_ID] = "concept";
         rev_name_map["concept"] = CONCEPT_ID;
     }
-} dummy_concept_init;
-
-// While searching for correct action, keep track of state history
-// for easy manipulation without copying
-struct History {
-    static int idcount;
-    int id;
-    int iskey, haskey, listkey, isval, hasval;
-    vector<Object> listval;
-    History(int isk = -1, int hask = -1, int listk = -1, 
-        int isv = -1, int hasv = -1, const vector<Object> &listv = vector<Object>()) 
-        : 
-        id(idcount++), iskey(isk), haskey(hask), listkey(listk),
-        isval(isv), hasval(hasv), listval(listv) {}
-    static void mm_rollback(multimap<int,int> &mm, int key, int val);
-    void rollback() {
-        if (iskey != -1) {
-            mm_rollback(is_map, iskey, isval);
-        }
-        if (haskey != -1) {
-            mm_rollback(has_map, haskey, hasval);
-        }
-        if (listkey != -1) {
-            list_map.erase(listkey);
-        }
-    }
-    void putback() {
-        if (iskey != -1) {
-            is_map.insert({iskey, isval});
-        }
-        if (haskey != -1) {
-            has_map.insert({haskey, hasval});
-        }
-        if (listkey != -1) {
-            list_map[listkey] = listval;
-        }
-    }
-};
-
-static void mm_rollback(multimap<int,int> &mm, int key, int val) {
-    auto pair = mm.find(key);
-    for (; pair.first != pair.second; pair.first++) {
-        if (*pair.first == val) {
-            mm.erase(pair.first);
-            return;
-        }
-    }
-    cout << "Failed to roll back " << key << endl; // Maybe more object info
-}
-
-ostream &operator<<(ostream &os, const Concept &c) {
-    os << name_map[c.id];
-    return os;
-}
+} concept_init;
 
 // Concepts are singletons
 Concept::Concept(const string &n) : Object() {
@@ -152,6 +103,7 @@ Concept::Concept(const string &n) : Object() {
     }
 }
 
+// Special objects and concepts
 Concept null("null");           // null object
 Concept na("not applicable");   // exception
 Concept boolean("boolean");
@@ -159,20 +111,96 @@ Object nullobj("null");         // null
 Object yes("boolean");          // true
 Object no("boolean");           // false
 
+// History stack
+vector<tuple<int, int, int, int>> history;
+
+// History Operations
+enum MapType {
+    HasMap, IsMap, ListMap
+};
+
+enum MapOp {
+    Add, Remove
+};
+
+// Functional interface to has, is, and list maps
+// While searching for correct action, keep track of state history
+void map_add(multimap<int,int> &map, MapType type, int a, int b, bool record) {
+    map.insert({a,b});
+    if (record)
+        history.push_back({type, MapOp.Add, a, b});
+}
+
+void map_remove(multimap<int,int> &map, MapType type, int a, int b, bool record) {
+    auto range = has_map.equal_range(a);
+    for (auto it = range.first; it != range.second; it++) {
+        if (*it == b) {
+            if (record)            
+                history.push_back({type, MapOp.Remove, a, b});
+            map.erase(it);
+            return;
+        }
+    }
+}
+
+void has_add(int a, int b, bool record = true) {
+    map_add(has_map, MapType.HasMap, a, b, record);
+}
+
+void is_add(int a, int b, bool record = true) {
+    map_add(is_map, MapType.IsMap, a, b, record);
+}
+
+void has_remove(int a, int b, bool record = true) {
+    map_remove(has_map, MapType.HasMap, a, b, record);
+}
+
+void is_remove(int a, int b, bool record = true) {
+    map_remove(is_map, MapType.IsMap, a, b, record);
+}
+
+void list_contains(int a, int b) {
+    auto lst = list_map[a];
+    for (int i=0; i<lst.size(); i++) {
+        if (lst[i] == b) return true;
+    }
+    return false;
+}
+
+void list_add(int a, int b, bool record = true) {
+    if (list_contains(a, b)) return;
+    list_map[a].push_back(b);
+    if (record)
+        history.push_back({MapType.ListMap, MapOp.Add, a, b});
+}
+
+void list_remove(int a, int b, bool record = true) {
+    if (!list_contains(a, b)) return;
+    auto lst = list_map[a];
+    for (auto it = lst.begin(); it != lst.end(); it++) {
+        if (*it == b) {
+            lst.erase(it);
+            if (record)
+                history.push_back({MapType.ListMap, MapOp.Remove, a, b});
+            return;
+        }
+    }
+}
+
 // For concept objects
 Object::Object() : id(idcount++) {
-    is_map.insert({id,CONCEPT_ID});
+    is_add(id, CONCEPT_ID);
 }
 
 // Objects of concrete type
 Object::Object(const string &type) : id(idcount++) {
     Concept c(type);
-    is_map.insert({id,c.id});
+    is_add(id, c.id);
 }
 
 // Concrete type again
 Object::Object(const Concept c) : id(idcount++) {
-    is_map.insert({id,c.id});
+    is_add(id, c.id);
 }
 
 bool Object::is(const Concept c) const {
@@ -186,11 +214,11 @@ bool Object::is(const Concept c) const {
 }
 
 void Object::give(const Object o) const {
-    has_map.insert({id,o.id});
+    has_add(id, o.id);
 }
 
 void Object::make(const Concept c) const {
-    is_map.insert({id,c.id});
+    is_add(id, c.id);
 }
 
 // Get object property
@@ -217,52 +245,39 @@ void Object::remove(const Concept c) const {
     }
 }
 
+// Useful because it's indexed
 struct List : public Object {
     List(int _id) : Object(_id) {}
     List(const Object &o) : Object(o.id) {}
     List(const string &field_name = "") : Object("list") {
-        list_map[id];
         if (field_name.length() != 0) {
-            Object(id).make(Concept(field_name));
+            make(Concept(field_name));
         }
     }
-    vector<Object> &List::get_objects() const {
-        return list_map.at(id);
-    }
     virtual bool operator==(const List &other) const {
-        vector<Object> &obj = get_objects();
-        vector<Object> &oth = other.get_objects();
-        return obj == oth;
+        return list_map[id] == list_map[other.id];
     }
     virtual bool operator!=(const List &other) const {
         return !(*this == other);
     }
     Object operator[](int idx) const {
-        vector<Object> &objects = get_objects();
+        vector<Object> &objects = list_map[id];
         if (objects.size() > idx) {
             return objects.at(idx);
         }
         return na;
     }
     int size() const {
-        vector<Object> &objects = get_objects();
-        return objects.size();
+        list_map[id].size();
     }
     void add(Object obj) {
-        vector<Object> &objects = get_objects();
-        objects.push_back(obj);
+        list_add(id, obj.id);
     }
     void remove(Object obj) {
-        vector<Object> &objects = get_objects();
-        for (auto it = objects.begin(); it != objects.end(); it++) {
-            if (it->id == obj.id) {
-                objects.erase(it);
-                return;
-            }
-        }
+        list_remove(id, obj.id);
     }
     int index_of(Object obj) {
-        vector<Object> &objects = get_objects();
+        vector<Object> &objects = list_map[id];
         for (size_t i=0; i<objects.size(); i++) {
             if (objects[i].id == obj.id) {
                 return i;
@@ -271,8 +286,6 @@ struct List : public Object {
         return -1;
     }
 };
-
-/*
 
 typedef Object (*ActionFn)(vector<Object> &, Object &);
 
@@ -302,7 +315,7 @@ struct Action : public Object {
     }
 };
 
-
+/*
 // A relation between two objects
 struct Relation : public Object {
     Object &from;
