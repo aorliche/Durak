@@ -24,9 +24,10 @@ struct Object {
     int id;
     // Constructors
     Object(int _id) : id(_id) {}
+    Object(const Object &o) : id(o.id) {}
     Object();
-    Object(const string &type = "");
-    Object(const Concept c);
+    Object(const string &type);
+    Object(const Concept &c);
     // Operators
     virtual bool operator==(const Object &other) const {
         return id == other.id;
@@ -38,10 +39,17 @@ struct Object {
         return id < other.id;
     }
     bool is(const Concept c) const;
+    bool is(const string &str) const;
     void give(const Object obj) const;
     void make(const Concept c) const;
+    void make(const string &str) const;
+    void unmake(const Concept &c) const;
+    void unmake(const string &str) const;
     Object get(const Concept c) const;
+    Object get(const string &str) const;
     void remove(const Concept c) const;
+    void remove(const string &str) const;
+    friend ostream& operator<<(ostream &os, const Object &o);
 };
 
 // Should go in source file
@@ -50,8 +58,10 @@ int Object::idcount = 0;
 struct Concept : public Object {
     Concept(const string &n);
     Concept(int _id) : Object(_id) {}
+    Concept(const Object &o) : Object(o.id) {}
+    Concept(const Concept &c) : Object(c.id) {}
     virtual bool operator==(const Concept &other) const {
-        return id = other.id;
+        return id == other.id;
     }
     virtual bool operator!=(const Concept &other) const {
         return !(*this == other);
@@ -71,12 +81,26 @@ unordered_map<string,int> rev_name_map;
 int CONCEPT_ID = -1;
 
 // "list" map for lists
-unordered_map<int,vector<Object>> list_map;
+unordered_map<int,vector<int>> list_map;
 
 // "is" and "has" maps 
 // for Object to Concepts and Object to Objects, respectively
 multimap<int,int> is_map;
 multimap<int,int> has_map;
+
+ostream &operator<<(ostream &os, const Object &o) {
+    if (o.is("concept")) {
+        os << Concept(o);
+        return os;
+    }
+    auto range = is_map.equal_range(o.id);
+    int i=0;
+    for (auto it = range.first; it != range.second; it++) {
+        if (i++ > 0) os << ',';
+        os << name_map[it->second];
+    }
+    return os;
+}
 
 ostream &operator<<(ostream &os, const Concept &c) {
     os << name_map[c.id];
@@ -88,38 +112,19 @@ struct ConceptInit {
     ConceptInit() {
         name_map[CONCEPT_ID] = "concept";
         rev_name_map["concept"] = CONCEPT_ID;
+        concepts.insert("concept");
     }
 } concept_init;
-
-// Concepts are singletons
-Concept::Concept(const string &n) : Object() {
-    if (concepts.count(n) != 0) {
-        // Keep object equality
-        id = rev_name_map[n];
-    } else {
-        name_map[id] = n;
-        rev_name_map[n] = id;
-        concepts.insert(n);
-    }
-}
-
-// Special objects and concepts
-Concept null("null");           // null object
-Concept na("not applicable");   // exception
-Concept boolean("boolean");
-Object nullobj("null");         // null
-Object yes("boolean");          // true
-Object no("boolean");           // false
 
 // History stack
 vector<tuple<int, int, int, int>> history;
 
 // History Operations
-enum MapType {
+enum MapType : int {
     HasMap, IsMap, ListMap
 };
 
-enum MapOp {
+enum MapOp : int {
     Add, Remove
 };
 
@@ -128,15 +133,15 @@ enum MapOp {
 void map_add(multimap<int,int> &map, MapType type, int a, int b, bool record) {
     map.insert({a,b});
     if (record)
-        history.push_back({type, MapOp.Add, a, b});
+        history.push_back({type, MapOp::Add, a, b});
 }
 
 void map_remove(multimap<int,int> &map, MapType type, int a, int b, bool record) {
-    auto range = has_map.equal_range(a);
+    auto range = map.equal_range(a);
     for (auto it = range.first; it != range.second; it++) {
-        if (*it == b) {
+        if (it->second == b) {
             if (record)            
-                history.push_back({type, MapOp.Remove, a, b});
+                history.push_back({type, MapOp::Remove, a, b});
             map.erase(it);
             return;
         }
@@ -144,22 +149,22 @@ void map_remove(multimap<int,int> &map, MapType type, int a, int b, bool record)
 }
 
 void has_add(int a, int b, bool record = true) {
-    map_add(has_map, MapType.HasMap, a, b, record);
+    map_add(has_map, MapType::HasMap, a, b, record);
 }
 
 void is_add(int a, int b, bool record = true) {
-    map_add(is_map, MapType.IsMap, a, b, record);
+    map_add(is_map, MapType::IsMap, a, b, record);
 }
 
 void has_remove(int a, int b, bool record = true) {
-    map_remove(has_map, MapType.HasMap, a, b, record);
+    map_remove(has_map, MapType::HasMap, a, b, record);
 }
 
 void is_remove(int a, int b, bool record = true) {
-    map_remove(is_map, MapType.IsMap, a, b, record);
+    map_remove(is_map, MapType::IsMap, a, b, record);
 }
 
-void list_contains(int a, int b) {
+bool list_contains(int a, int b) {
     auto lst = list_map[a];
     for (int i=0; i<lst.size(); i++) {
         if (lst[i] == b) return true;
@@ -171,7 +176,7 @@ void list_add(int a, int b, bool record = true) {
     if (list_contains(a, b)) return;
     list_map[a].push_back(b);
     if (record)
-        history.push_back({MapType.ListMap, MapOp.Add, a, b});
+        history.push_back({MapType::ListMap, MapOp::Add, a, b});
 }
 
 void list_remove(int a, int b, bool record = true) {
@@ -181,26 +186,49 @@ void list_remove(int a, int b, bool record = true) {
         if (*it == b) {
             lst.erase(it);
             if (record)
-                history.push_back({MapType.ListMap, MapOp.Remove, a, b});
+                history.push_back({MapType::ListMap, MapOp::Remove, a, b});
             return;
         }
     }
 }
 
-// For concept objects
-Object::Object() : id(idcount++) {
+// Special objects and concepts
+Concept null("null");           // null object
+Concept na("not applicable");   // exception
+Concept boolean("bool");
+Object nullobj("null");         // null
+Object yes("bool");             // true
+Object no("bool");              // false
+
+// Concepts are singletons
+Concept::Concept(const string &n) : Object() {
+    if (concepts.count(n) != 0) {
+        // Keep object equality
+        id = rev_name_map[n];
+    } else {
+        name_map[id] = n;
+        rev_name_map[n] = id;
+        concepts.insert(n);
+    }
     is_add(id, CONCEPT_ID);
 }
+
+// For concept objects
+Object::Object() : id(idcount++) {}
 
 // Objects of concrete type
 Object::Object(const string &type) : id(idcount++) {
     Concept c(type);
+    Concept o("object");
     is_add(id, c.id);
+    is_add(id, o.id);
 }
 
 // Concrete type again
-Object::Object(const Concept c) : id(idcount++) {
+Object::Object(const Concept &c) : id(idcount++) {
+    Concept o("object");
     is_add(id, c.id);
+    is_add(id, o.id);
 }
 
 bool Object::is(const Concept c) const {
@@ -213,12 +241,28 @@ bool Object::is(const Concept c) const {
     return false;
 }
 
+bool Object::is(const string &str) const {
+    return is(Concept(str));
+}
+
 void Object::give(const Object o) const {
     has_add(id, o.id);
 }
 
+void Object::make(const string &str) const {
+    make(Concept(str));
+}
+
 void Object::make(const Concept c) const {
     is_add(id, c.id);
+}
+
+void Object::unmake(const Concept &c) const {
+    is_remove(id, c.id);
+}
+
+void Object::unmake(const string &str) const {
+    unmake(Concept(str));
 }
 
 // Get object property
@@ -233,16 +277,41 @@ Object Object::get(const Concept c) const {
     return nullobj;
 }
 
+Object Object::get(const string &str) const {
+    return get(Concept(str));
+}
+
 // Remove object property
 void Object::remove(const Concept c) const {
-    auto range = has_map.equal_range(id);
+    has_remove(id, c.id);
+    /*auto range = has_map.equal_range(id);
     for (auto it = range.first; it != range.second; it++) {
         auto obj = Object(it->second);
         if (obj.is(c)) {
-            has_map.erase(it);
+            has_remove(obj.id, c.id);
             return;
         }
+    }*/
+}
+
+void Object::remove(const string &str) const {
+    remove(Concept(str));
+}
+
+vector<int> objvec2intvec(const vector<Object> &objs) {
+    vector<int> res;
+    for (size_t i=0; i<objs.size(); i++) {
+        res.push_back(objs[i].id);
     }
+    return res;
+}
+
+vector<Object> intvec2objvec(const vector<int> &ints) {
+    vector<Object> res;
+    for (size_t i=0; i<ints.size(); i++) {
+        res.push_back(Object(ints[i]));
+    }
+    return res;
 }
 
 // Useful because it's indexed
@@ -261,14 +330,14 @@ struct List : public Object {
         return !(*this == other);
     }
     Object operator[](int idx) const {
-        vector<Object> &objects = list_map[id];
+        vector<Object> objects = intvec2objvec(list_map[id]);
         if (objects.size() > idx) {
             return objects.at(idx);
         }
         return na;
     }
     int size() const {
-        list_map[id].size();
+        return list_map[id].size();
     }
     void add(Object obj) {
         list_add(id, obj.id);
@@ -277,7 +346,7 @@ struct List : public Object {
         list_remove(id, obj.id);
     }
     int index_of(Object obj) {
-        vector<Object> &objects = list_map[id];
+        vector<Object> objects = intvec2objvec(list_map[id]);
         for (size_t i=0; i<objects.size(); i++) {
             if (objects[i].id == obj.id) {
                 return i;
@@ -287,33 +356,133 @@ struct List : public Object {
     }
 };
 
-typedef Object (*ActionFn)(vector<Object> &, Object &);
+// Automatically expand in action
+struct ExpandList : public List {
+    ExpandList(int _id) : List(_id) {
+        make(Concept("expand-list"));
+    }
+};
+
+// Action function type
+typedef Object (*ActionFn)(const vector<Object> &);
+
+// Action data structures
+unordered_map<int,int> act_res_map;
+unordered_map<int,ActionFn> act_map;
+unordered_map<int,vector<int>> act_args_map;
+//unordered_map<int,vector<int>> act_inst_map;
 
 // An action takes objects as arguments and returns some value
 struct Action : public Object {
-    const Concept res_type;
-    vector<Concept> arg_types;
-    ActionFn fn;
-    Action(const string &name, const string &rtype, const vector<string> atypes, ActionFn f) 
-        : Object(name), res_type(rtype), fn(f) {
-            for (auto atype : atypes) {
-                arg_types.push_back(Concept(atype));
+    static Action no_action;
+    Action() : Object("action") {}
+    Action(int _id) : Object(_id) {}
+    Action(const Action &a) : Object(a.id) {}
+    Action(const string &name, const string &rtype, const vector<string> &atypes, ActionFn fn) : Object(name) {
+        make("action");
+        act_res_map[id] = Concept(rtype).id;
+        auto &act_args = act_args_map[id];
+        for (size_t i=0; i<atypes.size(); i++) {
+            act_args.push_back(Concept(atypes[i]).id);
+        }
+        act_map[id] = fn;
+    }
+    Action(Concept name, Concept rtype, const vector<int> &atypes, ActionFn fn) : Object(name) {
+        make("action");
+        act_res_map[id] = rtype.id;
+        act_args_map[id] = atypes;
+        act_map[id] = fn;
+    }
+    Object eval(vector<Object> &args) {
+        return act_map[id](args);
+    }
+    Concept get_concept() {
+        auto range = is_map.equal_range(id);
+        for (auto it = range.first; it != range.second; it++) {
+            int cid = it->second;
+            if (name_map[cid] != "object" and name_map[cid] != "action") {
+                return Concept(cid);
             }
         }
+        return null;
+    }
+    string get_name() {
+        return name_map[get_concept().id];
+    }
+    size_t get_args_size() const {
+        return act_args_map[id].size();
+    }
+    /*Action instantiate(const vector<Object> &args) {
+        if (!is_compatible(args)) 
+            throw na;
+        Action a(get_concept(), Concept(act_res_map[id]), act_args_map[id], act_map[id]);
+        inst_map[a.id] = objvec2intvec(args);
+    }*/
+    bool is_compatible_arg(int idx, Object arg) {
+        return arg.is(Concept(act_args_map[id][idx]));
+    }
     bool is_compatible(const vector<Object> &args) {
+        auto &act_args = act_args_map[id];
+        if (args.size() != act_args.size()) {
+            return false;
+        }
         for (size_t i=0; i<args.size(); i++) {
-            Concept type = action.arg_types[i];
-            Object arg = args[i];
+            Concept type(act_args[i]);
+            Object arg(args[i]);
             if (!arg.is(type)) {
                 return false;
             }
         }
         return true;
     }
-    Object eval(vector<Object> &args, Object &ctx) {
-        return fn(args, ctx);
+};
+
+Action Action::no_action;
+
+typedef tuple<int,int,int,int> History;
+
+struct Node {
+    Object res;
+    vector<History> changes; // TODO not used
+    vector<Node*> parents;
+    Action act;
+    Node(const Object &r) : res(r.id), act(Action::no_action) {}
+    Node(const Action &a) : res(nullobj), act(a) {}
+    Object eval() {
+        vector<Object> args;
+        cout << parents.size() << endl;
+        for (size_t i=0; i<parents.size(); i++) {
+            args.push_back(parents[i]->res);
+        }
+        res = act.eval(args);
+        return res;
+    }
+    void print(ostream &os, size_t lvl = 0) {
+        for (size_t i=0; i<lvl; i++) {
+            os << '\t';
+        }
+        os << act.get_name() << " (" << res << ")" << endl; 
+        for (size_t i=0; i<parents.size(); i++) {
+            parents[i]->print(os, lvl+1);
+        }
     }
 };
+
+# define MAKEACTION(a,ret,args) Action a##_action(#a,ret,args,a)
+
+// Most general functions
+Object get_field(const vector<Object> &args) {
+    return args[0].get(Concept(args[1].id));
+}
+
+MAKEACTION(get_field, "get-field", (vector<string>{"object", "concept"}));
+
+Object expand_list(const vector<Object> &args) {
+    ExpandList lst(args[0].id);
+    return lst;
+}
+
+MAKEACTION(expand_list, "expand-list", (vector<string>{"list"}));
 
 /*
 // A relation between two objects
