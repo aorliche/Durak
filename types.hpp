@@ -1,3 +1,5 @@
+#ifndef DURAK_TYPES_H
+#define DURAK_TYPES_H
 
 #include <string>
 #include <vector>
@@ -8,6 +10,8 @@
 #include <unordered_map>
 #include <map>
 #include <set>
+#include <sstream>
+#include <iterator>
 
 using namespace std;
 
@@ -336,6 +340,9 @@ struct List : public Object {
         }
         return na;
     }
+    vector<Object> get_objects() {
+        return intvec2objvec(list_map[id]);
+    }
     int size() const {
         return list_map[id].size();
     }
@@ -353,13 +360,6 @@ struct List : public Object {
             }
         }
         return -1;
-    }
-};
-
-// Automatically expand in action
-struct ExpandList : public List {
-    ExpandList(int _id) : List(_id) {
-        make(Concept("expand-list"));
     }
 };
 
@@ -444,18 +444,49 @@ typedef tuple<int,int,int,int> History;
 struct Node {
     Object res;
     vector<History> changes; // TODO not used
-    vector<Node*> parents;
+    vector<Node> parents;
+    vector<int> sig;
     Action act;
-    Node(const Object &r) : res(r.id), act(Action::no_action) {}
-    Node(const Action &a) : res(nullobj), act(a) {}
+    Node(const Object &r) : res(r.id), act(Action::no_action) {
+        sign();
+    }
+    Node(const Action &a) : res(nullobj), act(a) {
+        sign();
+    }
+    Node(const Object &r, const Action &a, const vector<Node> &p) 
+            : res(r.id), act(a), parents(p) {
+        sign();
+    }
+    Node(const Node &n) 
+            : res(n.res.id), act(n.act), parents(n.parents), sig(n.sig) 
+        {}
+    void sign() {
+        sig.push_back(res.id);
+        sig.push_back(act.id);
+        for (size_t i=0; i<parents.size(); i++) 
+            sig.insert(
+                sig.end(), 
+                parents[i].sig.begin(), 
+                parents[i].sig.end());
+    }
+    string sig_str() const {
+        stringstream str;
+        copy(sig.begin(), sig.end(), ostream_iterator<int>(str, " "));
+        return str.str();
+    }
     Object eval() {
         vector<Object> args;
-        cout << parents.size() << endl;
         for (size_t i=0; i<parents.size(); i++) {
-            args.push_back(parents[i]->res);
+            args.push_back(parents[i].res);
         }
-        res = act.eval(args);
-        return res;
+        return act.eval(args);
+    }
+    Object eval(vector<Node*> pps) {
+        vector<Object> args;
+        for (size_t i=0; i<pps.size(); i++) {
+            args.push_back(pps[i]->res);
+        }
+        return act.eval(args);
     }
     void print(ostream &os, size_t lvl = 0) {
         for (size_t i=0; i<lvl; i++) {
@@ -463,7 +494,7 @@ struct Node {
         }
         os << act.get_name() << " (" << res << ")" << endl; 
         for (size_t i=0; i<parents.size(); i++) {
-            parents[i]->print(os, lvl+1);
+            parents[i].print(os, lvl+1);
         }
     }
 };
@@ -477,12 +508,12 @@ Object get_field(const vector<Object> &args) {
 
 MAKEACTION(get_field, "get-field", (vector<string>{"object", "concept"}));
 
+// Expand list has special behavior in search code
 Object expand_list(const vector<Object> &args) {
-    ExpandList lst(args[0].id);
-    return lst;
+    return args[0];
 }
 
-MAKEACTION(expand_list, "expand-list", (vector<string>{"list"}));
+MAKEACTION(expand_list, "list", (vector<string>{"list"}));
 
 /*
 // A relation between two objects
@@ -511,3 +542,5 @@ struct Number : public Object {
         return val < other.val;
     }
 };*/
+
+#endif

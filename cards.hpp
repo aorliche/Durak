@@ -136,6 +136,7 @@ ostream &operator<<(ostream &os, const Pile &p) {
 
 struct Game : public Object {
     Game();
+    Game(const Object &obj) : Object(obj.id) {}
 };
 
 Object beats(const vector<Object> &args);
