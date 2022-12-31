@@ -19,12 +19,16 @@ struct Rank : public Object {
                 return;
             }
         }
+        throw Exception();
     }
     Rank(const Object &o) : Object(o.id) {}
-    bool operator==(const Rank &other) const {
+    bool operator==(const Object &other) const {
+        if (not other.is("rank")) {
+            return false;
+        }
         return rank_map[id] == rank_map[other.id];
     }
-    bool operator!=(const Rank &other) const {
+    bool operator!=(const Object &other) const {
         return !(*this == other);
     }
     bool operator>(const Rank &other) const {
@@ -52,12 +56,16 @@ struct Suit : public Object {
                 return;
             }
         }
+        throw Exception();
     }
     Suit(const Object &o) : Object(o.id) {}
-    bool operator==(const Suit &other) const {
+    bool operator==(const Object &other) const {
+        if (not other.is("suit")) {
+            return false;
+        }
         return suit_map[id] == suit_map[other.id];
     }
-    bool operator!=(const Suit &other) const {
+    bool operator!=(const Object &other) const {
         return !(*this == other);
     }
 };
@@ -74,12 +82,18 @@ struct Card : public Object {
         give(Rank(rank));
         give(Suit(suit));
     }
-    Card(const Object &o) : Object(o.id) {}
-    // Overload equals operator
-    virtual bool operator==(const Card &other) const {
-        return get("suit") == other.get("suit") && get("rank") == other.get("rank");
+    Card(const Object &o) : Object(o.id) {
+        if (!o.is("card")) throw Exception();
     }
-    virtual bool operator!=(const Card &other) const {
+    // Overload equals operator
+    virtual bool operator==(const Object &other) const {
+        if (not other.is("card")) {
+            return false;
+        }
+        return Suit(get("suit")) == Suit(other.get("suit")) 
+            && Rank(get("rank")) == Rank(other.get("rank"));
+    }
+    virtual bool operator!=(const Object &other) const {
         return !(*this == other);
     }
     // To string
@@ -137,6 +151,16 @@ ostream &operator<<(ostream &os, const Pile &p) {
 struct Game : public Object {
     Game();
     Game(const Object &obj) : Object(obj.id) {}
+    void set_trump(Card c) {
+        try {
+            Card old(get("trump"));
+            old.unmake("trump");
+            remove(old);
+        } catch(Exception) {}
+        give(c);
+        c.make("trump");
+        c.unmake("card");
+    }
 };
 
 Object beats(const vector<Object> &args);
@@ -147,11 +171,11 @@ struct Board : public Pile {
     void cover(Card c1, Card c2, Game g) {
         int idx = index_of(c1);
         if (idx == -1) 
-            throw na;
+            throw Exception();
         if (c1.get("cover") != nullobj)
-            throw na;
+            throw Exception();
         if (beats(vector<Object>{c1, c2, g}) != yes) 
-            throw na;
+            throw Exception();
         c1.give(Cover(c2));
     }
     void play(Card c) {
@@ -161,22 +185,28 @@ struct Board : public Pile {
 
 Game::Game() : Object("game") {
     give(Board());
-    give(Pile("hand"));
-    give(Card("Ace", "Spades"));
-    get("card").make("trump");
-    get("trump").unmake("card");
 }
 
 // Composition functions
 Object higher_rank(const vector<Object> &args) {
-    Rank r1(args[0].get("rank"));
-    Rank r2(args[1].get("rank"));
+    Rank r1(args[0]);
+    Rank r2(args[1]);
     if (r1 > r2) {
         return yes;
     } 
     return no;
 }
 MAKEACTION(higher_rank, "bool", (vector<string>{"rank", "rank"}));
+
+Object same_suit(const vector<Object> &args) {
+    Suit s1(args[0]);
+    Suit s2(args[1]);
+    if (s1 == s2) {
+        return yes;
+    }
+    return no;
+}
+MAKEACTION(same_suit, "bool", (vector<string>{"suit", "suit"}));
 
 Object beats(const vector<Object> &args) {
     Suit s0(args[0].get("suit"));

@@ -12,6 +12,7 @@
 #include <set>
 #include <sstream>
 #include <iterator>
+#include <functional>
 
 using namespace std;
 
@@ -53,7 +54,11 @@ struct Object {
     Object get(const string &str) const;
     void remove(const Concept c) const;
     void remove(const string &str) const;
+    // Search
+    size_t get_sig() const;
+    // Printing and debug
     friend ostream& operator<<(ostream &os, const Object &o);
+    void dump(ostream &os) const;
 };
 
 // Should go in source file
@@ -92,18 +97,40 @@ unordered_map<int,vector<int>> list_map;
 multimap<int,int> is_map;
 multimap<int,int> has_map;
 
-ostream &operator<<(ostream &os, const Object &o) {
-    if (o.is("concept")) {
-        os << Concept(o);
-        return os;
+// Hash operator for vector<int>
+// https://stackoverflow.com/questions/20511347/a-good-hash-function-for-a-vector
+struct int_vector_hasher {
+    std::size_t operator()(std::vector<int> const& vec) const {
+        std::size_t seed = vec.size();
+        for(auto x : vec) {
+            x = ((x >> 16) ^ x) * 0x45d9f3b;
+            x = ((x >> 16) ^ x) * 0x45d9f3b;
+            x = (x >> 16) ^ x;
+            seed ^= x + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
+        return seed;
     }
-    auto range = is_map.equal_range(o.id);
-    int i=0;
+};
+
+// Get list of concepts for the object
+size_t Object::get_sig() const {
+    auto range = is_map.equal_range(id);
+    vector<int> ids;
     for (auto it = range.first; it != range.second; it++) {
-        if (i++ > 0) os << ',';
-        os << name_map[it->second];
+        ids.push_back(it->second);
     }
-    return os;
+    sort(ids.begin(), ids.end());
+    return int_vector_hasher{}(ids);
+}
+
+void Object::dump(ostream &os) const {
+    os << *this << endl;
+    auto range = has_map.equal_range(id);
+    int i=0; 
+    for (auto it = range.first; it != range.second; it++) {
+        Object(it->second).dump(os);
+        cout << endl;
+    }
 }
 
 ostream &operator<<(ostream &os, const Concept &c) {
@@ -196,13 +223,32 @@ void list_remove(int a, int b, bool record = true) {
     }
 }
 
+class Exception {};
+
 // Special objects and concepts
 Concept null("null");           // null object
-Concept na("not applicable");   // exception
 Concept boolean("bool");
 Object nullobj("null");         // null
 Object yes("bool");             // true
 Object no("bool");              // false
+
+ostream &operator<<(ostream &os, const Object &o) {
+    if (o.is("concept")) {
+        os << Concept(o);
+        return os;
+    }
+    if (o == nullobj) {
+        os << "nullobj";
+        return os;
+    }
+    auto range = is_map.equal_range(o.id);
+    int i=0;
+    for (auto it = range.first; it != range.second; it++) {
+        if (i++ > 0) os << ',';
+        os << name_map[it->second];
+    }
+    return os;
+}
 
 // Concepts are singletons
 Concept::Concept(const string &n) : Object() {
@@ -338,7 +384,7 @@ struct List : public Object {
         if (objects.size() > idx) {
             return objects.at(idx);
         }
-        return na;
+        throw Exception();
     }
     vector<Object> get_objects() {
         return intvec2objvec(list_map[id]);
@@ -439,65 +485,126 @@ struct Action : public Object {
 
 Action Action::no_action;
 
-typedef tuple<int,int,int,int> History;
+// TODO not used
+// typedef tuple<int,int,int,int> History;
+
+unordered_map<int,int> node_res_map;
+unordered_map<int,vector<int>> node_parent_map;
+unordered_map<int,int> node_act_map;
+unordered_map<int,vector<int>> node_sig_map;
+
+typedef const function<ostream &(ostream &, const Object&)> value_print;
 
 struct Node {
-    Object res;
-    vector<History> changes; // TODO not used
-    vector<Node> parents;
-    vector<int> sig;
-    Action act;
-    Node(const Object &r) : res(r.id), act(Action::no_action) {
+    static int idcount;
+    int id;
+    Node(int i) : id(i) {}
+    Node(const Node &n) : id(n.id) {}
+    Node(const Object &r) : id(idcount++) {
+        node_res_map[id] = r.id;
+        node_act_map[id] = Action::no_action.id;
         sign();
     }
-    Node(const Action &a) : res(nullobj), act(a) {
+    Node(const Action &a) : id(idcount++) {
+        node_res_map[id] = nullobj.id;
+        node_act_map[id] = a.id;
         sign();
     }
-    Node(const Object &r, const Action &a, const vector<Node> &p) 
-            : res(r.id), act(a), parents(p) {
+    Node(const Object &r, const Action &a, const vector<int> &p) 
+            : id(idcount++) {
+        node_res_map[id] = r.id;
+        node_act_map[id] = a.id;
+        node_parent_map[id] = p;
         sign();
     }
-    Node(const Node &n) 
-            : res(n.res.id), act(n.act), parents(n.parents), sig(n.sig) 
-        {}
+    Object get_res() const {
+        return node_res_map[id];
+    }
+    Action get_act() const {
+        return node_act_map[id];
+    }
+    vector<int> &get_sig() const {
+        return node_sig_map[id];
+    }
+    vector<int> get_shallow() const {
+        vector<int> shallow{node_act_map[id]};
+        vector<int> &parents = node_parent_map[id];
+        for (size_t i=0; i<parents.size(); i++) {
+            int resid = node_res_map[parents[i]];
+            shallow.push_back(resid);
+        }
+        return shallow;
+    }
     void sign() {
-        sig.push_back(res.id);
-        sig.push_back(act.id);
-        for (size_t i=0; i<parents.size(); i++) 
+        vector<int> sig;
+        vector<int> &parents = node_parent_map[id];
+        int resid = node_res_map[id];
+        int actid = node_act_map[id];
+        sig.push_back(Object(resid).get_sig());
+        sig.push_back(actid);
+        for (size_t i=0; i<parents.size(); i++) {
             sig.insert(
                 sig.end(), 
-                parents[i].sig.begin(), 
-                parents[i].sig.end());
+                node_sig_map[parents[i]].begin(), 
+                node_sig_map[parents[i]].end());
+        }
+        node_sig_map[id] = sig;
     }
     string sig_str() const {
         stringstream str;
+        vector<int> sig = node_sig_map[id];
         copy(sig.begin(), sig.end(), ostream_iterator<int>(str, " "));
         return str.str();
     }
     Object eval() {
         vector<Object> args;
+        vector<int> parents = node_parent_map[id];
+        Action act(node_act_map[id]);
         for (size_t i=0; i<parents.size(); i++) {
-            args.push_back(parents[i].res);
+            Object res = node_res_map[parents[i]];
+            args.push_back(res);
         }
         return act.eval(args);
     }
-    Object eval(vector<Node*> pps) {
-        vector<Object> args;
-        for (size_t i=0; i<pps.size(); i++) {
-            args.push_back(pps[i]->res);
-        }
-        return act.eval(args);
+    void remove() {
+        node_act_map.erase(id);
+        node_res_map.erase(id);
+        node_parent_map.erase(id);
+        node_sig_map.erase(id);
     }
-    void print(ostream &os, size_t lvl = 0) {
+    void print(ostream &os, size_t lvl = 0, value_print &vp = {}) {
+        Action act(node_act_map[id]);
+        Object res(node_res_map[id]);
+        vector<int> parents = node_parent_map[id];
         for (size_t i=0; i<lvl; i++) {
             os << '\t';
         }
-        os << act.get_name() << " (" << res << ")" << endl; 
+        os << act.get_name() << " (" << res << ") ";
+        if (vp) vp(os, res);
+        os << endl;
         for (size_t i=0; i<parents.size(); i++) {
-            parents[i].print(os, lvl+1);
+            Node(parents[i]).print(os, lvl+1, vp);
         }
     }
+    bool operator==(const Node &other) const {
+        return id == other.id;
+    }
 };
+
+int Node::idcount = 0;
+
+void print_nodes(ostream &os, vector<Node> &nodes, value_print &vp = {}) {
+    for (size_t i=0; i<nodes.size(); i++) {
+        nodes[i].print(os, 0, vp);
+    }
+}
+
+void print_objs(ostream &os, vector<int> &ids) {
+    for (size_t i=0; i<ids.size(); i++) {
+        os << Object(ids[i]) << ' ';
+    }
+    os << endl;
+}
 
 # define MAKEACTION(a,ret,args) Action a##_action(#a,ret,args,a)
 
