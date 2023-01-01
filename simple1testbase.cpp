@@ -9,10 +9,10 @@ int main(void) {
     cout << c << endl;
     cout << (c == c1) << endl;
     cout << (c == c2) << endl;
-    cout << get<bool>(higher_rank(vector<Object>{c1,c2})) << endl;
-    cout << get<bool>(higher_rank(vector<Object>{c2,c1})) << endl;
-    cout << get<bool>(higher_rank(vector<Object>{c3,c4})) << endl;
-    cout << get<bool>(higher_rank(vector<Object>{c4,c3})) << endl;
-    cout << get<bool>(same_suit(vector<Object>{c4,c3})) << endl;    
-    cout << get<bool>(same_suit(vector<Object>{c2,c4})) << endl;    
+    cout << get<bool>(higher_rank(vector<Property>{c1.id,c2.id})) << endl;
+    cout << get<bool>(higher_rank(vector<Property>{c2.id,c1.id})) << endl;
+    cout << get<bool>(higher_rank(vector<Property>{c3.id,c4.id})) << endl;
+    cout << get<bool>(higher_rank(vector<Property>{c4.id,c3.id})) << endl;
+    cout << get<bool>(same_suit(vector<Property>{c4.id,c3.id})) << endl;    
+    cout << get<bool>(same_suit(vector<Property>{c2.id,c4.id})) << endl;    
 }
