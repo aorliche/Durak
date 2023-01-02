@@ -177,34 +177,34 @@ void default_pfn(ostream &os, const Property &p) {
 struct Node {
     Property res;
     Function fn;
-    vector<Node> parents;
+    vector<Node *> parents;
+    size_t sig = 0;
     Node() : res("null") {};
     Node(const Property &p) : res(p) {}
     Node(const Function &f) : fn(f) {}
-    Node(const Node &n) : res(n.res), fn(n.fn), parents(n.parents) {}
-    Property eval(vector<Node*> ps) const {
+    Node(const Node &n) : res(n.res), fn(n.fn), parents(n.parents), sig(n.sig) {}
+    void sign();
+    void set_res(const Property &p) {
+        res = p;
+        sign();
+    }
+    void set_fn(const Function &f) {
+        fn = f;
+        sign();
+    }
+    void set_parents(const vector<Node*> &ps) {
+        parents = ps;
+        sign();
+    }
+    Property eval() const {
         vector<Property> args;
-        for (int i=0; i<ps.size(); i++) {
-            args.push_back(ps[i]->res);
+        for (int i=0; i<parents.size(); i++) {
+            args.push_back(parents[i]->res);
         }
         return fn(args);
     }
-    void update_parents(vector<Node*> ps) {
-        parents.clear();
-        for (int i=0; i<ps.size(); i++) {
-            parents.push_back(*ps[i]);
-        }
-    }
     bool operator==(const Node &other) const {
-        if (res != other.res 
-            or fn != other.fn 
-            or parents.size() != other.parents.size()) 
-            return false;
-        for (int i=0; i<parents.size(); i++) {
-            if (parents[i].res != other.parents[i].res) 
-                return false;
-        }
-        return true;
+        return sig == other.sig;
     }
     void print(ostream &os, 
         int lvl = 0, 
@@ -214,9 +214,9 @@ struct Node {
         }
         os << "(" << fn.name << ") ";
         pfn(os, res);
-        os << endl;
+        os << " - " << sig << endl;
         for (int i=0; i<parents.size(); i++) {
-            parents[i].print(os, lvl+1, pfn);
+            parents[i]->print(os, lvl+1, pfn);
         }
     }
 };
@@ -235,18 +235,29 @@ size_t hash_prop(const Property &res) {
     return h;
 }
 
+// https://stackoverflow.com/questions/2590677/how-do-i-combine-hash-values-in-c0x  
+template <class T>
+inline void hash_combine(std::size_t& seed, const T& v)
+{
+    std::hash<T> hasher;
+    seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
+
 struct node_hasher {
-    size_t operator()(const Node &n) const {
-        size_t h = hash<string>{}(n.fn.name) + hash_prop(n.res);
-        for (auto it = n.parents.begin(); it != n.parents.end(); it++) {
-            auto &res = it->res;
-            auto &name = it->fn.name;
-            h += hash<string>{}(name) + hash_prop(res);
+    size_t operator()(const Node *n) const {
+        size_t h = 0;
+        hash_combine(h, n->fn.name);
+        hash_combine(h, hash_prop(n->res));
+        for (int i=0; i<n->parents.size(); i++) {
+            hash_combine(h, n->parents[i]->sig);
         }
-        // cout << "hash" << h << endl;
         return h;
     }
 };
+
+void Node::sign() {
+    sig = node_hasher{}(this);
+}
 
 // Helper functions
 template <typename T>

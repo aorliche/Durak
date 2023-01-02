@@ -3,7 +3,7 @@
 // Conjunctive
 struct Predicate {
     string name;
-    vector<Node> parents;
+    vector<Node*> parents;
     vector<bool> weights;
     int nargs;
     Predicate(const string &n) : name(n) {}
@@ -31,6 +31,12 @@ struct Predicate {
     }
 };
 
-void make_predicate(vector<vector<Node>> &train, vector<bool> &res, int maxargs = 3) {
-    
+void match(const vector<Node*> &nodes, bool res, int maxargs = 3) {
+    // Get bool-valued nodes
+    vector<Node*> bnodes;
+    for (int i=0; i<nodes.size(); i++) {
+        if (nodes[i]->res.index() == 0) {
+            bnodes.push_back(nodes[i]);
+        }
+    }
 }
