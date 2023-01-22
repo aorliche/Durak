@@ -1,4 +1,5 @@
 *
+!go
 !Makefile
 !.gitignore
 !*.hpp
