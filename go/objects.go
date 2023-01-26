@@ -5,11 +5,23 @@ import (
     "reflect"
     "runtime"
     "strings"
+    "sort"
 )
 
 // https://stackoverflow.com/questions/7052693/how-to-get-the-name-of-a-function-in-go
 func GetFunctionName(i interface{}) string {
     return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+}
+
+func IntPow(base int, exp int) int {
+    if exp == 0 {
+        return 1
+    }
+    res := 1
+    for i := 0; i<exp; i++ {
+        res *= base
+    }
+    return res
 }
 
 type object struct {
@@ -94,13 +106,14 @@ func cardStr(c *object) string {
 type fnSig func([]interface{}) interface{}
 
 type fn struct {
-    f fnSig 
+    f fnSig
     args []string
+    commutes bool
 }
 
 var getPropFn = fn{f: getProp, args: []string{"*object", "string"}}
 var greaterRankFn = fn{f: greaterRank, args: []string{"string", "string"}}
-var equalStrFn = fn{f: equal, args: []string{"string", "string"}}
+var equalStrFn = fn{f: equal, args: []string{"string", "string"}, commutes: true}
 
 type node struct {
     f *fn
@@ -126,15 +139,15 @@ func compat(f *fn, n *node, idx int) bool {
         return false
     }
     switch n.val.(type) {
-        case int: return f.args[idx] == "int" 
-        case string: return f.args[idx] == "string" 
-        case bool: return f.args[idx] == "bool" 
-        case *object: return f.args[idx] == "*object" 
+        case int: return f.args[idx] == "int"
+        case string: return f.args[idx] == "string"
+        case bool: return f.args[idx] == "bool"
+        case *object: return f.args[idx] == "*object"
     }
     return false
 }
 
-// TODO commutivity and equal results
+// TODO equal results
 // need custom deep method that will also be needed for state difference
 func fnodes(f *fn, nodes []*node) []*node {
     cargs := make([]([]int), 0)
@@ -153,15 +166,32 @@ func fnodes(f *fn, nodes []*node) []*node {
     if num == 0 {
         return nil
     }
+    checked := make(map[int]bool) // Commuting
     res := make([]*node, 0)
     for i := 0; i < num; i++ {
         mod := 1
-        children := make([]*node, len(cargs)) 
+        idcs := make([]int, len(cargs)) // Commuting
+        children := make([]*node, len(cargs))
         args := make([]interface{}, len(cargs))
         for j := 0; j < len(cargs); j++ {
-            children[j] = nodes[cargs[j][(i/mod)%len(cargs[j])]]
+            idcs[j] = cargs[j][(i/mod)%len(cargs[j])]
+            children[j] = nodes[idcs[j]]
             args[j] = children[j].val
             mod *= len(cargs[j])
+        }
+        // Commuting
+        if f.commutes {
+            sort.Ints(idcs)
+            key := 0
+            for k := 0; k < len(cargs); k++ {
+                key += idcs[k]*IntPow(num, k)
+            }
+            // Commuting indices already evaluated
+            _, ok := checked[key]
+            if ok {
+                continue;
+            }
+            checked[key] = true
         }
         r := f.f(args)
         if r == nil {
@@ -223,11 +253,18 @@ func fallnodes_n(fs []*fn, nodes []*node, times int) []*node {
                 uniq = append(uniq, n)
             }
         }
-        fmt.Println(len(res))
-        fmt.Println(len(uniq))
+        /*fmt.Println(len(res))
+        fmt.Println(len(uniq))*/
         nodes = append(nodes, uniq...)
     }
     return nodes
+}
+
+// TODO difference between states
+// Closure returns path to all different nodes
+// Returns nil when there aren't any differences left
+func diff(obj1 *object, obj2 *object) func() []string {
+
 }
 
 /*func learnPred(args []interface{}, argTypes []string, game *object, history []*pred) *pred {
@@ -248,6 +285,7 @@ func main() {
     fmt.Println(cardStr(nd.val.(*object)))*/
     //nodes := fnodes(&equalStrFn, []*node{nrank, nsuit, nc, nd})
     nodes := fallnodes_n([]*fn{&equalStrFn, &getPropFn}, []*node{nrank, nsuit, nc, nd}, 2) 
+    //fmt.Println(nodeStr(nodes[0], 0))
     for _,n := range nodes {
         fmt.Println(nodeStr(n, 0))
     }
