@@ -13,6 +13,7 @@ func GetFunctionName(i interface{}) string {
     return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
+// My own integer power function
 func IntPow(base int, exp int) int {
     if exp == 0 {
         return 1
@@ -29,15 +30,6 @@ type object struct {
     props map[string] interface{}
     propTypes map[string] string
 }
-
-/*func (o object) valtyp() string {
-    switch o.typ {
-        case "rank": 
-        case "suit": 
-            return "string"
-    }
-    return "none"
-}*/
 
 func makeObject(typ string) *object {
     obj := object{typ: typ, props: make(map[string]interface{}), propTypes: make(map[string]string)}
@@ -147,9 +139,9 @@ func compat(f *fn, n *node, idx int) bool {
     return false
 }
 
-// TODO equal results
-// need custom deep method that will also be needed for state difference
-func fnodes(f *fn, nodes []*node) []*node {
+// TODO maybe check equal results (hash sig)
+// TODO special list expand
+func fNodes(f *fn, nodes []*node) []*node {
     cargs := make([]([]int), 0)
     for i := 0; i < len(f.args); i++ {
         cargs = append(cargs, make([]int, 0))
@@ -202,10 +194,10 @@ func fnodes(f *fn, nodes []*node) []*node {
     return res
 }
 
-func fallnodes(fs []*fn, nodes []*node) []*node {
+func fAllNodes(fs []*fn, nodes []*node) []*node {
     res := make([]*node, 0)
     for _,f := range fs {
-        r := fnodes(f, nodes)
+        r := fNodes(f, nodes)
         res = append(res, r...)
     }
     return res
@@ -237,9 +229,9 @@ func nodeStr(n *node, lvl int) string {
     return str
 }
 
-func fallnodes_n(fs []*fn, nodes []*node, times int) []*node {
+func fAllNodesMany(fs []*fn, nodes []*node, times int) []*node {
     for i := 0; i < times; i++ {
-        res := fallnodes(fs, nodes)
+        res := fAllNodes(fs, nodes)
         uniq := make([]*node, 0)
         for _,n := range res {
             eq := false
@@ -253,18 +245,77 @@ func fallnodes_n(fs []*fn, nodes []*node, times int) []*node {
                 uniq = append(uniq, n)
             }
         }
-        /*fmt.Println(len(res))
-        fmt.Println(len(uniq))*/
+        fmt.Println(len(res))
+        fmt.Println(len(uniq))
         nodes = append(nodes, uniq...)
     }
     return nodes
 }
 
+func getKeys(props map[string]interface{}) []string {
+    keys := make([]string, len(props))
+    i := 0
+    for k := range props {
+        keys[i] = k
+        i++
+    }
+    return keys
+}
+
+// TODO use interface{}
+func arrMinus(keys1 []string, keys2 []string) []string {
+    set := make([]string, 0)
+    for _,k1 := range keys1 {
+        both := false
+        for _,k2 := range keys2 {
+            if k1 == k2 {
+                both = true
+                break
+            }
+        }
+        if !both {
+            set = append(set, k1)
+        }
+    }
+    return set
+}
+
+func arrInt(keys1 []string, keys2 []string) []string {
+    set := make([]string, 0)
+    for _,k1 := range keys1 {
+        for _,k2 := range keys2 {
+            if k1 == k2 {
+                set = append(set, k1)
+                break
+            }
+        }
+    }
+    return set
+}
+
 // TODO difference between states
 // Closure returns path to all different nodes
 // Returns nil when there aren't any differences left
-func diff(obj1 *object, obj2 *object) func() []string {
+func diffObjects(obj1 *object, obj2 *object) []string {
+    keys1 := getKeys(obj1.props)
+    keys2 := getKeys(obj2.props)
+    //diff1 := arrMinus(keys1, keys2)
+    //diff2 := arrMinus(keys2, keys1)
+    return diff1
+}
 
+func nodeFromPath(obj *object, path []string) *node {
+    n := makeNode(nil, nil, obj, -1)
+    for _,s := range path {
+        sn := makeNode(nil, nil, s, -1)
+        val := getProp([]interface{}{n.val, sn.val})
+        n = makeNode(&getPropFn, []*node{n, sn}, val, -1)
+    }
+    return n
+}
+
+func nodeHasPath(n *node, path []string) bool {
+    return false;
 }
 
 /*func learnPred(args []interface{}, argTypes []string, game *object, history []*pred) *pred {
@@ -274,6 +325,7 @@ func diff(obj1 *object, obj2 *object) func() []string {
 func main() {
     c := makeCard("8", "Hearts")
     d := makeCard("10", "Hearts")
+    g := makeGame(d)
     nrank := makeNode(nil, nil, "rank", -1)
     nsuit := makeNode(nil, nil, "suit", -1)
     nc := makeNode(nil, nil, c, 0)
@@ -283,10 +335,17 @@ func main() {
     fmt.Println(compat(&equalStrFn, nc, 0))
     fmt.Println(cardStr(nc.val.(*object)))
     fmt.Println(cardStr(nd.val.(*object)))*/
-    //nodes := fnodes(&equalStrFn, []*node{nrank, nsuit, nc, nd})
-    nodes := fallnodes_n([]*fn{&equalStrFn, &getPropFn}, []*node{nrank, nsuit, nc, nd}, 2) 
+    //nodes := fNodes(&equalStrFn, []*node{nrank, nsuit, nc, nd})
+    fAllNodesMany([]*fn{&equalStrFn, &getPropFn}, []*node{nrank, nsuit, nc, nd}, 3)
     //fmt.Println(nodeStr(nodes[0], 0))
-    for _,n := range nodes {
+    /*for _,n := range nodes {
         fmt.Println(nodeStr(n, 0))
-    }
+    }*/
+    n := nodeFromPath(g, []string{"trump", "rank"})
+    fmt.Println(nodeStr(n, 0))
+    kc := getKeys(c.props)
+    kd := getKeys(d.props)
+    kg := getKeys(g.props)
+    fmt.Println(arrMinus(kc, kg))
+    fmt.Println(arrInt(kc, kd))
 }
