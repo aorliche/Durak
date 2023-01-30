@@ -25,10 +25,26 @@ func IntPow(base int, exp int) int {
     return res
 }
 
+// Data types
 type object struct {
     typ string
     props map[string] interface{}
     propTypes map[string] string
+}
+
+type fnSig func([]interface{}) interface{}
+
+type fn struct {
+    f fnSig
+    args []string
+    commutes bool
+}
+
+type node struct {
+    f *fn
+    children []*node
+    val interface{}
+    bind int
 }
 
 func makeObject(typ string) *object {
@@ -84,7 +100,12 @@ func getProp(args []interface{}) interface{} {
 }
 
 func greaterRank(args []interface{}) interface{} {
-    return indexOf(ranks, args[0].(string)) > indexOf(ranks, args[1].(string));
+    i1 := indexOf(ranks, args[0].(string)) 
+    i2 := indexOf(ranks, args[1].(string))
+    if i1 == -1 || i2 == -1 {
+        return nil
+    }
+    return i1 > i2
 }
 
 func equal(args []interface{}) interface{} {
@@ -95,35 +116,19 @@ func cardStr(c *object) string {
     return fmt.Sprintf("%s of %s", c.props["rank"].(string), c.props["suit"].(string))
 }
 
-type fnSig func([]interface{}) interface{}
-
-type fn struct {
-    f fnSig
-    args []string
-    commutes bool
+// Never called
+func expandList(args[] interface{}) interface{} {
+    return nil
 }
 
 var getPropFn = fn{f: getProp, args: []string{"*object", "string"}}
 var greaterRankFn = fn{f: greaterRank, args: []string{"string", "string"}}
 var equalStrFn = fn{f: equal, args: []string{"string", "string"}, commutes: true}
-
-type node struct {
-    f *fn
-    children []*node
-    val interface{}
-    bind int
-}
+var expandPropsFn = fn{f: getProp, args: []string{"*object"}}
+var expandListFn = fn{f: expandList, args: []string{"[]any"}}
 
 func makeNode(f *fn, children []*node, val interface{}, bind int) *node {
-    n := node{f: f, children: children, val: val, bind: bind}
-    return &n
-}
-
-type pred struct {
-    terms []*node
-    typ string // conj, disj
-    args []interface{}
-    argTypes []string
+    return &node{f: f, children: children, val: val, bind: bind}
 }
 
 func compat(f *fn, n *node, idx int) bool {
@@ -139,9 +144,50 @@ func compat(f *fn, n *node, idx int) bool {
     return false
 }
 
+func fNodesExpandLists(nodes []*node) []*node {
+    res := make([]*node, 0)
+    for _,n := range nodes {
+        if reflect.TypeOf(n.val).Kind() != reflect.Slice {
+            continue
+        }
+        switch n.val.(type) {
+            case []*object: {
+                for _,item := range n.val.([]*object) {
+                    res = append(res, makeNode(&expandListFn, []*node{n}, item, -1))
+                }
+            }
+            default: panic("unknown type")
+        }
+    }
+    return res
+}
+
+func fNodesExpandProps(nodes []*node) []*node {
+    res := make([]*node, 0)
+    for _,n := range nodes {
+        switch n.val.(type) {
+            case *object: {
+                obj := n.val.(*object)
+                for key := range obj.props {
+                    kn := makeNode(nil, nil, key, -1)
+                    rn := makeNode(&getPropFn, []*node{n, kn}, obj.props[key], -1)
+                    res = append(res, rn)
+                }
+            }
+        }
+    }
+    return res
+}
+
 // TODO maybe check equal results (hash sig)
 // TODO special list expand
+// Only returns new nodes
 func fNodes(f *fn, nodes []*node) []*node {
+    if (f == &expandPropsFn) {
+        return fNodesExpandProps(nodes)
+    } else if (f == &expandListFn) {
+        return fNodesExpandLists(nodes)
+    }
     cargs := make([]([]int), 0)
     for i := 0; i < len(f.args); i++ {
         cargs = append(cargs, make([]int, 0))
@@ -203,6 +249,30 @@ func fAllNodes(fs []*fn, nodes []*node) []*node {
     return res
 }
 
+// TODO hash equals instead of deep equals
+func fAllNodesMany(fs []*fn, nodes []*node, times int) []*node {
+    for i := 0; i < times; i++ {
+        res := fAllNodes(fs, nodes)
+        uniq := make([]*node, 0)
+        for _,n := range res {
+            eq := false
+            for _,m := range nodes {
+                if reflect.DeepEqual(n,m) {
+                    eq = true
+                    break
+                }
+            }
+            if !eq {
+                uniq = append(uniq, n)
+            }
+        }
+        //fmt.Println(len(res))
+        //fmt.Println(len(uniq))
+        nodes = append(nodes, uniq...)
+    }
+    return nodes
+}
+
 func objStr(obj *object) string {
     switch obj.typ {
         case "card": return cardStr(obj)
@@ -229,29 +299,6 @@ func nodeStr(n *node, lvl int) string {
     return str
 }
 
-func fAllNodesMany(fs []*fn, nodes []*node, times int) []*node {
-    for i := 0; i < times; i++ {
-        res := fAllNodes(fs, nodes)
-        uniq := make([]*node, 0)
-        for _,n := range res {
-            eq := false
-            for _,m := range nodes {
-                if reflect.DeepEqual(n,m) {
-                    eq = true
-                    break
-                }
-            }
-            if !eq {
-                uniq = append(uniq, n)
-            }
-        }
-        fmt.Println(len(res))
-        fmt.Println(len(uniq))
-        nodes = append(nodes, uniq...)
-    }
-    return nodes
-}
-
 func getKeys(props map[string]interface{}) []string {
     keys := make([]string, len(props))
     i := 0
@@ -259,49 +306,71 @@ func getKeys(props map[string]interface{}) []string {
         keys[i] = k
         i++
     }
+    sort.Strings(keys)
     return keys
 }
 
-// TODO use interface{}
-func arrMinus(keys1 []string, keys2 []string) []string {
+// Assumes sorted keys
+func strArrMinus(keys1 []string, keys2 []string) []string {
     set := make([]string, 0)
-    for _,k1 := range keys1 {
-        both := false
-        for _,k2 := range keys2 {
-            if k1 == k2 {
-                both = true
-                break
-            }
+    for i,j := 0,0; i < len(keys1); i++ {
+        for j < len(keys2) && keys2[j] < keys1[i] {
+            j++
         }
-        if !both {
-            set = append(set, k1)
+        if j < len(keys2) && keys1[i] == keys2[j] {
+            j++
+            continue
         }
+        set = append(set, keys1[i])
     }
     return set
 }
 
-func arrInt(keys1 []string, keys2 []string) []string {
+// Assumes sorted keys
+func strArrInt(keys1 []string, keys2 []string) []string {
     set := make([]string, 0)
-    for _,k1 := range keys1 {
-        for _,k2 := range keys2 {
-            if k1 == k2 {
-                set = append(set, k1)
-                break
-            }
+    for i,j := 0,0; i < len(keys1); i++ {
+        for j < len(keys2) && keys2[j] < keys1[i] {
+            j++
+        }
+        if j == len(keys2) {
+            break
+        }
+        if keys1[i] == keys2[j] {
+            set = append(set, keys1[i])
+            j++
         }
     }
     return set
 }
 
 // TODO difference between states
-// Closure returns path to all different nodes
-// Returns nil when there aren't any differences left
-func diffObjects(obj1 *object, obj2 *object) []string {
+// TODO Closure returns path to all different nodes
+// TODO slices as property types
+func diffObjects(obj1 *object, obj2 *object, path []string) []([]string) {
     keys1 := getKeys(obj1.props)
     keys2 := getKeys(obj2.props)
-    //diff1 := arrMinus(keys1, keys2)
-    //diff2 := arrMinus(keys2, keys1)
-    return diff1
+    diff := strArrMinus(keys2, keys1)
+    common := strArrInt(keys1, keys2)
+    res := make([]([]string), 0)
+    for _,key := range diff {
+        npath := append(path, key)
+        res = append(res, npath)
+    }
+    tObj := reflect.TypeOf(obj1)
+    for _,key := range common {
+        t1 := reflect.TypeOf(obj1.props[key])
+        t2 := reflect.TypeOf(obj2.props[key])
+        if t1 == t2 && t1 == tObj {
+            npath := append(path, key)
+            subres := diffObjects(obj1.props[key].(*object), obj2.props[key].(*object), npath)
+            res = append(res, subres...)
+        } else if t1 == t2 && obj1.props[key] != obj2.props[key] {
+            npath := append(path, key)
+            res = append(res, npath)
+        }
+    }
+    return res
 }
 
 func nodeFromPath(obj *object, path []string) *node {
@@ -314,38 +383,132 @@ func nodeFromPath(obj *object, path []string) *node {
     return n
 }
 
-func nodeHasPath(n *node, path []string) bool {
+/*func nodeHasPath(n *node, path []string) bool {
     return false;
-}
+}*/
 
 /*func learnPred(args []interface{}, argTypes []string, game *object, history []*pred) *pred {
 
 }*/
 
+type conj struct {
+    terms []*node
+    neg []bool
+}
+
+type disj struct {
+    terms []*conj
+}
+
+type predHist struct {
+    terms []*disj
+    val bool
+    game *object
+    args []interface{}
+}
+
+type pred struct {
+    terms []*disj
+    name string
+    argTypes []string
+    hist []*predHist
+}
+
+// -1: game
+type nodeWithArg struct {
+    n *node
+    arg int
+}
+
+func (n *node) hasSubnode(sn *node) bool {
+    if n.children == nil {
+        return false
+    }
+    for _,c := range n.children {
+        if c == sn || c.hasSubnode(sn) {
+            return true
+        }
+    }
+    return false
+}
+
+func getNodesWithArgs(nodes []*node, args []*node) []*nodeWithArg {
+    res := make([]*nodeWithArg, 0)
+    for _,n := range nodes {
+        for i,sn := range args {
+            if n.hasSubnode(sn) {
+                res = append(res, &nodeWithArg{n: n, arg: i})
+            }
+        }
+    }
+    return res
+}
+
+func getBoolNodes(nodes []*node) []*node {
+    res := make([]*node, 0)
+    for _,n := range nodes {
+        if reflect.TypeOf(n.val).Kind() == reflect.Bool {
+            res = append(res, n)
+        }
+    }
+    return res
+}
+
+// TODO must use args, each node at least 1 arg or game, pred uses all args
+func makePred(name string, argTypes []string, args []interface{}, game *object, fs []*fn, times int) []*node {
+    //p := &pred{name: name, argTypes: argTypes, hist: make([]*predHist, 0), terms: make([]*disj, 0)}
+    n := makeNode(nil, nil, game, -1)
+    nargs := make([]*node, 0)
+    nargs = append(nargs, n)
+    for i,arg := range args {
+        n = makeNode(nil, nil, arg, i)
+        nargs = append(nargs, n)
+    }
+    nodes := fAllNodesMany(fs, nargs, times)
+    nodes = getBoolNodes(nodes)
+    //nodesArgs := getNodesWithArgs(nodes, nargs) 
+    return nodes //nodesArgs
+}
+
 func main() {
-    c := makeCard("8", "Hearts")
+    c := makeCard("8", "Spades")
     d := makeCard("10", "Hearts")
     g := makeGame(d)
-    nrank := makeNode(nil, nil, "rank", -1)
-    nsuit := makeNode(nil, nil, "suit", -1)
-    nc := makeNode(nil, nil, c, 0)
-    nd := makeNode(nil, nil, d, 1)
+    //g := makeObject("x factor")
+    g.setProp("x", "[]*object", []*object{c, d})
+    //x := makeNode(nil, nil, []bool{true, false}, -1)
+    //h := makeGame(c)
+    //nrank := makeNode(nil, nil, "rank", -1)
+    //nsuit := makeNode(nil, nil, "suit", -1)
+    //nc := makeNode(nil, nil, c, 0)
+    //nd := makeNode(nil, nil, d, 1)
     /*fmt.Println(compat(&equalStrFn, nrank, 0))
     fmt.Println(compat(&equalStrFn, nsuit, 2))
     fmt.Println(compat(&equalStrFn, nc, 0))
     fmt.Println(cardStr(nc.val.(*object)))
     fmt.Println(cardStr(nd.val.(*object)))*/
     //nodes := fNodes(&equalStrFn, []*node{nrank, nsuit, nc, nd})
-    fAllNodesMany([]*fn{&equalStrFn, &getPropFn}, []*node{nrank, nsuit, nc, nd}, 3)
+    //fAllNodesMany([]*fn{&equalStrFn, &getPropFn}, []*node{nrank, nsuit, nc, nd}, 3)
     //fmt.Println(nodeStr(nodes[0], 0))
     /*for _,n := range nodes {
         fmt.Println(nodeStr(n, 0))
     }*/
-    n := nodeFromPath(g, []string{"trump", "rank"})
+    /*n := nodeFromPath(g, []string{"trump", "rank"})
     fmt.Println(nodeStr(n, 0))
     kc := getKeys(c.props)
     kd := getKeys(d.props)
     kg := getKeys(g.props)
-    fmt.Println(arrMinus(kc, kg))
-    fmt.Println(arrInt(kc, kd))
+    fmt.Println(strArrMinus(kc, kg))
+    fmt.Println(strArrMinus(kg, kc))
+    fmt.Println(strArrMinus(kc, kd))
+    fmt.Println(strArrInt(kc, kd))
+    fmt.Println(strArrInt(kg, kc))
+    fmt.Println(kg)
+    do := diffObjects(g,h,make([]string,0))
+    fmt.Println(do)
+    fmt.Println(nodeStr(nodeFromPath(h, do[0]), 0))*/
+    nodes := makePred("beats", []string{"card", "card"}, []interface{}{c,d}, g, []*fn{&expandListFn, &expandPropsFn, &equalStrFn, &greaterRankFn}, 6) 
+    for _,n := range nodes {
+        fmt.Println(nodeStr(n, 0))
+    }
 }
