@@ -6,6 +6,9 @@ import (
     "runtime"
     "strings"
     "sort"
+    "hash/crc32"
+    "unsafe"
+    "encoding/binary"
 )
 
 // https://stackoverflow.com/questions/7052693/how-to-get-the-name-of-a-function-in-go
@@ -117,7 +120,7 @@ func cardStr(c *object) string {
 }
 
 // Never called
-func expandList(args[] interface{}) interface{} {
+func expandList(args []interface{}) interface{} {
     return nil
 }
 
@@ -144,7 +147,7 @@ func compat(f *fn, n *node, idx int) bool {
     return false
 }
 
-func fNodesExpandLists(nodes []*node) []*node {
+func fNodesExpandLists(nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
     res := make([]*node, 0)
     for _,n := range nodes {
         if reflect.TypeOf(n.val).Kind() != reflect.Slice {
@@ -153,7 +156,8 @@ func fNodesExpandLists(nodes []*node) []*node {
         switch n.val.(type) {
             case []*object: {
                 for _,item := range n.val.([]*object) {
-                    res = append(res, makeNode(&expandListFn, []*node{n}, item, -1))
+                    nn := makeNode(&expandListFn, []*node{n}, item, -1)
+                    nn.addToRes(&res, hashes, disreg)
                 }
             }
             default: panic("unknown type")
@@ -162,7 +166,7 @@ func fNodesExpandLists(nodes []*node) []*node {
     return res
 }
 
-func fNodesExpandProps(nodes []*node) []*node {
+func fNodesExpandProps(nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
     res := make([]*node, 0)
     for _,n := range nodes {
         switch n.val.(type) {
@@ -171,7 +175,8 @@ func fNodesExpandProps(nodes []*node) []*node {
                 for key := range obj.props {
                     kn := makeNode(nil, nil, key, -1)
                     rn := makeNode(&getPropFn, []*node{n, kn}, obj.props[key], -1)
-                    res = append(res, rn)
+                    rn.addToRes(&res, hashes, disreg)
+                    //res = append(res, rn)
                 }
             }
         }
@@ -179,14 +184,75 @@ func fNodesExpandProps(nodes []*node) []*node {
     return res
 }
 
-// TODO maybe check equal results (hash sig)
-// TODO special list expand
+func AppendPtr[T any](b []byte, ptr *T) []byte {
+    addr := uint64(uintptr(unsafe.Pointer(ptr)))
+    return binary.LittleEndian.AppendUint64(b, addr)
+}
+
+func AppendBool(b []byte, flag bool) []byte {
+    ui := uint32(0)
+    if flag {
+        ui = 1
+    }
+    return binary.LittleEndian.AppendUint32(b, ui)
+}
+
+func AppendAny(b []byte, val interface{}) []byte {
+    switch val.(type) {
+        case bool: return AppendBool(b, val.(bool))
+        case int: return binary.LittleEndian.AppendUint32(b, uint32(val.(int)))
+        case string: return append(b, []byte(val.(string))...)
+        case *object: return AppendPtr(b, val.(*object))
+        case []*object: return AppendPtr(b, &val.([]*object)[0])
+    }
+    return b
+}
+
+func hash(n *node) uint32 {
+    c := crc32.NewIEEE()
+    b := make([]byte, 0)
+    if n.f != nil {
+        b = AppendPtr(b, n.f)
+        //fmt.Println(b)
+    }
+    b = AppendAny(b, n.val)
+    //fmt.Println(b)
+    for _,c := range n.children {
+        b = AppendAny(b, c.val)
+        //fmt.Println(b)
+    }
+    //fmt.Println(b)
+    c.Write(b)
+    return c.Sum32()
+}
+
+// Do not re-evaluate with same arguments, even if reached by different path
+// New evidence will cause suppression of hash disallow
+func (n *node) addToRes(res *[]*node, hashes map[uint32]bool, disreg map[uint32]bool) {
+    h := hash(n)
+    _, ok := hashes[h]
+    _, dis := disreg[h]
+    //fmt.Println(nodeStr(n, 0))
+    if ok && !dis {
+        //fmt.Println("Removed")
+        //fmt.Println(h)
+        return
+    }
+    *res = append(*res, n)
+    if !dis {
+        //fmt.Println(h)
+        hashes[h] = true
+    }
+}
+
+// TODO equality compare same type of properties... (i.e. concept or type)
 // Only returns new nodes
-func fNodes(f *fn, nodes []*node) []*node {
+func fNodes(f *fn, nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+    //fmt.Println("Entered fNodes")
     if (f == &expandPropsFn) {
-        return fNodesExpandProps(nodes)
+        return fNodesExpandProps(nodes, hashes, disreg)
     } else if (f == &expandListFn) {
-        return fNodesExpandLists(nodes)
+        return fNodesExpandLists(nodes, hashes, disreg)
     }
     cargs := make([]([]int), 0)
     for i := 0; i < len(f.args); i++ {
@@ -217,6 +283,12 @@ func fNodes(f *fn, nodes []*node) []*node {
             args[j] = children[j].val
             mod *= len(cargs[j])
         }
+        // Special case for equals: never compare same sequence of nodes
+        if f == &equalStrFn {
+            if children[0].val == children[1].val {
+                continue
+            }
+        }
         // Commuting
         if f.commutes {
             sort.Ints(idcs)
@@ -227,48 +299,64 @@ func fNodes(f *fn, nodes []*node) []*node {
             // Commuting indices already evaluated
             _, ok := checked[key]
             if ok {
-                continue;
+                continue
             }
             checked[key] = true
         }
         r := f.f(args)
+        // Nil means not suitable somehow
         if r == nil {
             continue
         }
-        res = append(res, makeNode(f, children, r, -1))
+        nn := makeNode(f, children, r, -1)
+        nn.addToRes(&res, hashes, disreg)
     }
+    //fmt.Println("--")
+    //fmt.Println(len(res))
     return res
 }
 
-func fAllNodes(fs []*fn, nodes []*node) []*node {
+func fAllNodes(fs []*fn, nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+    //fmt.Println("Entered fAllNodes")
     res := make([]*node, 0)
     for _,f := range fs {
-        r := fNodes(f, nodes)
+        r := fNodes(f, nodes, hashes, disreg)
         res = append(res, r...)
     }
+    /*for _,n := range res {
+        fmt.Println(nodeStr(n, 0))
+        fmt.Println(hash(n))
+    }
+    fmt.Println("Left fAllNodes")*/
     return res
 }
 
-// TODO hash equals instead of deep equals
-func fAllNodesMany(fs []*fn, nodes []*node, times int) []*node {
+// TODO back to deep equals or hash equals?
+// TODO disreg should be argument
+func fAllNodesMany(fs []*fn, nodes []*node, times int, disreg map[uint32]bool) []*node {
+    hashes := make(map[uint32]bool)
+    //disreg := make(map[uint32]bool)
     for i := 0; i < times; i++ {
-        res := fAllNodes(fs, nodes)
-        uniq := make([]*node, 0)
-        for _,n := range res {
-            eq := false
+        res := fAllNodes(fs, nodes, hashes, disreg)
+        nodes = append(nodes, res...)
+        //fmt.Println(len(res))
+        //uniq := make([]*node, 0)
+        //for _,n := range res {
+            /*eq := false
             for _,m := range nodes {
-                if reflect.DeepEqual(n,m) {
+                if n == m {
+                    fmt.Println("okay")
                     eq = true
                     break
                 }
             }
-            if !eq {
-                uniq = append(uniq, n)
-            }
-        }
+            if !eq {*/
+                //uniq = append(uniq, n)
+            //}
+        //}
         //fmt.Println(len(res))
         //fmt.Println(len(uniq))
-        nodes = append(nodes, uniq...)
+        //nodes = append(nodes, uniq...)
     }
     return nodes
 }
@@ -284,11 +372,18 @@ func nodeStr(n *node, lvl int) string {
     str := strings.Repeat("  ", lvl)
     if n.f != nil {
         str += GetFunctionName(n.f.f)
-        str += " (" + strings.Join(n.f.args, ",") + ")"
+        str += " (" + strings.Join(n.f.args, ",") + ") "
     }
     switch n.val.(type) {
-        case *object: str += " " + objStr(n.val.(*object))
-        default: str += fmt.Sprintf(" %v", n.val)
+        case *object: str += objStr(n.val.(*object))
+        case []*object: {
+            strSlice := make([]string, 0)
+            for _,obj := range n.val.([]*object) {
+                strSlice = append(strSlice, objStr(obj))
+            }
+            str += "[" + strings.Join(strSlice, ", ") + "]"
+        }
+        default: str += fmt.Sprintf("%v", n.val)
     }
     if n.bind > -1 {
         str += fmt.Sprintf(" BIND %d", n.bind)
@@ -438,6 +533,7 @@ func getNodesWithArgs(nodes []*node, args []*node) []*nodeWithArg {
         for i,sn := range args {
             if n.hasSubnode(sn) {
                 res = append(res, &nodeWithArg{n: n, arg: i})
+                break
             }
         }
     }
@@ -454,20 +550,29 @@ func getBoolNodes(nodes []*node) []*node {
     return res
 }
 
-// TODO must use args, each node at least 1 arg or game, pred uses all args
-func makePred(name string, argTypes []string, args []interface{}, game *object, fs []*fn, times int) []*node {
+// TODO must use args, each node at least 1 arg, pred uses all args
+func makePred(name string, argTypes []string, args []interface{}, game *object, fs []*fn, times int) []*nodeWithArg {
     //p := &pred{name: name, argTypes: argTypes, hist: make([]*predHist, 0), terms: make([]*disj, 0)}
     n := makeNode(nil, nil, game, -1)
     nargs := make([]*node, 0)
+    nbind := make([]*node, 0)
     nargs = append(nargs, n)
     for i,arg := range args {
         n = makeNode(nil, nil, arg, i)
         nargs = append(nargs, n)
+        nbind = append(nbind, n)
+        //fmt.Println(nodeStr(n,0))
+        //fmt.Println(n)
     }
-    nodes := fAllNodesMany(fs, nargs, times)
+    nodes := fAllNodesMany(fs, nargs, times, make(map[uint32]bool))
     nodes = getBoolNodes(nodes)
-    //nodesArgs := getNodesWithArgs(nodes, nargs) 
-    return nodes //nodesArgs
+    /*fmt.Println(len(nodes))
+    for _,n := range nodes {
+        fmt.Println(nodeStr(n, 0))
+        fmt.Println(hash(n))
+    }*/
+    nodesArgs := getNodesWithArgs(nodes, nbind)
+    return nodesArgs
 }
 
 func main() {
@@ -475,7 +580,7 @@ func main() {
     d := makeCard("10", "Hearts")
     g := makeGame(d)
     //g := makeObject("x factor")
-    g.setProp("x", "[]*object", []*object{c, d})
+    //g.setProp("x", "[]*object", []*object{c, d})
     //x := makeNode(nil, nil, []bool{true, false}, -1)
     //h := makeGame(c)
     //nrank := makeNode(nil, nil, "rank", -1)
@@ -509,6 +614,8 @@ func main() {
     fmt.Println(nodeStr(nodeFromPath(h, do[0]), 0))*/
     nodes := makePred("beats", []string{"card", "card"}, []interface{}{c,d}, g, []*fn{&expandListFn, &expandPropsFn, &equalStrFn, &greaterRankFn}, 6) 
     for _,n := range nodes {
-        fmt.Println(nodeStr(n, 0))
+        fmt.Println(nodeStr(n.n, 0))
+        fmt.Println(hash(n.n))
     }
+    fmt.Println(len(nodes))
 }
