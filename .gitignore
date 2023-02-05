@@ -1,7 +1,5 @@
 *
-!go
-!go/*.go
+!/**/
+!*.*
 !Makefile
 !.gitignore
-!*.hpp
-!*.cpp
