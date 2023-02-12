@@ -20,21 +20,7 @@ type node struct {
     children []*node
     val interface{}
     bind int
-}
-
-// 0: game
-type nodeArgs struct {
-    n *node
     args []int
-}
-
-type conj struct {
-    terms []*node
-    neg []bool
-}
-
-type disj struct {
-    terms []*conj
 }
 
 type example struct {
@@ -43,15 +29,18 @@ type example struct {
 }
 
 type history struct {
-    dis *disj
-    ex *example
+    nodes []*node
+    idx int
 }
 
+// nNodes and idx determine how predicate is evaluated
+// e.g. A~B, AB+~C, etc
 type pred struct {
-    dis *disj
+    nodes []*node
+    idx int
     name string
     argTypes []string
+    exs []*example
     hist []*history
-    fns []*fn
 }
 
