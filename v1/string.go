@@ -18,6 +18,9 @@ func nodeStr(n *node, lvl int) string {
         str += GetFunctionName(n.f.f)
         str += " (" + strings.Join(n.f.args, ",") + ") "
     }
+    if n.args != nil {
+        str += fmt.Sprint(n.args) + " "
+    }
     switch n.val.(type) {
         case *object: str += objStr(n.val.(*object))
         case []*object: {
@@ -36,4 +39,34 @@ func nodeStr(n *node, lvl int) string {
         str += "\n" + nodeStr(n.children[i], lvl+1)
     }
     return str
+}
+
+func indexStr(idx *index) string {
+    s := fmt.Sprintf("%d %d %d", idx.nTerms, idx.nNodes, idx.curIdx)
+    s += fmt.Sprint(idx.idcs)
+    return s
+}
+
+func satStr(n int, idx int) string {
+    switch n {
+        case 1: return satStr1(idx)
+        case 2: return satStr2(idx)
+        default: panic("bad")
+    }
+}
+
+func satStr1(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    return n0 + "A"
+}
+
+func satStr2(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    n1 := Ternary(((idx >> 1) & 1) == 1, "~", "")
+    split := idx >> 2
+    if split == 0 {
+        return n0 + "A" + n1 + "B"
+    } else {
+        return n0 + "A+" + n1 + "B"
+    }
 }

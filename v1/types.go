@@ -21,6 +21,14 @@ type node struct {
     val interface{}
     bind int
     args []int
+    vhash uint32
+    fhash uint32
+}
+
+// Canonicalize argument order for commuting fns like equal
+type canonArg struct {
+    arg interface{}
+    child *node
 }
 
 type example struct {
@@ -31,9 +39,11 @@ type example struct {
 type history struct {
     nodes []*node
     idx int
+    exs []*example
 }
 
-// nNodes and idx determine how predicate is evaluated
+// Number of nodes and idx determines how predicate is evaluated
+// evalCombo?() methods in sat.go
 // e.g. A~B, AB+~C, etc
 type pred struct {
     nodes []*node
@@ -42,5 +52,12 @@ type pred struct {
     argTypes []string
     exs []*example
     hist []*history
+    fns []*fn
 }
 
+type index struct {
+    nTerms int
+    nNodes int
+    curIdx int
+    idcs [4]int
+}

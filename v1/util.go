@@ -14,6 +14,26 @@ func GetFunctionName(i interface{}) string {
     return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
+func Ternary[T any](cond bool, a T, b T) T {
+    if cond {
+        return a
+    }
+    return b
+}
+
+// Unique elements of array
+func Unique[T comparable](t []T) []T {
+    set := make(map[T]bool)
+    for _,e := range t {
+        set[e] = true
+    }
+    uniq := make([]T, 0)
+    for e := range set {
+        uniq = append(uniq, e)
+    }
+    return uniq
+}
+
 // My own integer power function
 func IntPow(base int, exp int) int {
     if exp == 0 {
@@ -110,15 +130,51 @@ func AppendAny(b []byte, val interface{}) []byte {
 }
 
 func Hash(n *node) uint32 {
+    if n.vhash != 0 {
+        return n.vhash
+    }
     c := crc32.NewIEEE()
     b := make([]byte, 0)
     if n.f != nil {
         b = AppendPtr(b, n.f)
     }
     b = AppendAny(b, n.val)
-    for _,c := range n.children {
-        b = AppendAny(b, c.val)
+    for _,m := range n.children {
+        b = AppendAny(b, m.val)
     }
     c.Write(b)
-    return c.Sum32()
+    n.vhash = c.Sum32()
+    return n.vhash
+}
+
+func AppendNode(b []byte, n *node) []byte {
+    if n.f != nil {
+        b = append(b, []byte(GetFunctionName(n.f.f))...)
+        //b = AppendPtr(b, n.f)
+    }
+    if n.bind != -1 {
+        return binary.LittleEndian.AppendUint32(b, uint32(n.bind))
+    }
+    // For props
+    if n.children == nil && n.bind == -1 {
+        switch n.val.(type) {
+            case string: b = append(b, []byte(n.val.(string))...)
+        }
+    }
+    for _,m := range n.children {
+        b = AppendNode(b, m)
+    }
+    return b
+}
+
+func HashFuncBind(n *node) uint32 {
+    if n.fhash != 0 {
+        return n.fhash
+    }
+    c := crc32.NewIEEE()
+    b := make([]byte, 0)
+    b = AppendNode(b, n)
+    c.Write(b)
+    n.fhash = c.Sum32() 
+    return n.fhash
 }

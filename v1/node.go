@@ -6,7 +6,7 @@ import (
 )
 
 func makeNode(f *fn, children []*node, val interface{}, bind int) *node {
-    return &node{f: f, children: children, val: val, bind: bind}
+    return &node{f: f, children: children, val: val, bind: bind, args: nil}
 }
 
 func compat(f *fn, n *node, idx int) bool {
@@ -24,20 +24,17 @@ func compat(f *fn, n *node, idx int) bool {
 
 // Do not re-evaluate with same arguments, even if reached by different path
 // New evidence will cause suppression of hash disallow
-func (n *node) addToRes(res *[]*node, hashes map[uint32]bool, disreg map[uint32]bool) {
-    h := Hash(n)
+func (n *node) addToResult(res *[]*node, hashes map[uint32]bool) {
+    h := HashFuncBind(n)
     _, ok := hashes[h]
-    _, dis := disreg[h]
-    if ok && !dis {
+    if ok {
         return
     }
     *res = append(*res, n)
-    if !dis {
-        hashes[h] = true
-    }
+    hashes[h] = true
 }
 
-func fNodesExpandLists(nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+func fNodesExpandLists(nodes []*node, hashes map[uint32]bool) []*node {
     res := make([]*node, 0)
     for _,n := range nodes {
         if reflect.TypeOf(n.val).Kind() != reflect.Slice {
@@ -47,7 +44,7 @@ func fNodesExpandLists(nodes []*node, hashes map[uint32]bool, disreg map[uint32]
             case []*object: {
                 for _,item := range n.val.([]*object) {
                     nn := makeNode(&expandListFn, []*node{n}, item, -1)
-                    nn.addToRes(&res, hashes, disreg)
+                    nn.addToResult(&res, hashes)
                 }
             }
             default: panic("unknown type")
@@ -56,7 +53,7 @@ func fNodesExpandLists(nodes []*node, hashes map[uint32]bool, disreg map[uint32]
     return res
 }
 
-func fNodesExpandProps(nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+func fNodesExpandProps(nodes []*node, hashes map[uint32]bool) []*node {
     res := make([]*node, 0)
     for _,n := range nodes {
         switch n.val.(type) {
@@ -65,7 +62,7 @@ func fNodesExpandProps(nodes []*node, hashes map[uint32]bool, disreg map[uint32]
                 for key := range obj.props {
                     kn := makeNode(nil, nil, key, -1)
                     rn := makeNode(&getPropFn, []*node{n, kn}, obj.props[key], -1)
-                    rn.addToRes(&res, hashes, disreg)
+                    rn.addToResult(&res, hashes)
                 }
             }
         }
@@ -75,11 +72,11 @@ func fNodesExpandProps(nodes []*node, hashes map[uint32]bool, disreg map[uint32]
 
 // TODO equality compare same type of properties... (i.e. concept or type)
 // Only returns new nodes
-func fNodes(f *fn, nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+func fNodes(f *fn, nodes []*node, hashes map[uint32]bool) []*node {
     if (f == &expandPropsFn) {
-        return fNodesExpandProps(nodes, hashes, disreg)
+        return fNodesExpandProps(nodes, hashes)
     } else if (f == &expandListFn) {
-        return fNodesExpandLists(nodes, hashes, disreg)
+        return fNodesExpandLists(nodes, hashes)
     }
     cargs := make([]([]int), 0)
     for i := 0; i < len(f.args); i++ {
@@ -97,64 +94,64 @@ func fNodes(f *fn, nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool
     if num == 0 {
         return nil
     }
-    checked := make(map[int]bool) // Commuting
     res := make([]*node, 0)
     for i := 0; i < num; i++ {
         mod := 1
-        idcs := make([]int, len(cargs)) // Commuting
         children := make([]*node, len(cargs))
         args := make([]interface{}, len(cargs))
         for j := 0; j < len(cargs); j++ {
-            idcs[j] = cargs[j][(i/mod)%len(cargs[j])]
-            children[j] = nodes[idcs[j]]
+            idx := cargs[j][(i/mod)%len(cargs[j])]
+            children[j] = nodes[idx]
             args[j] = children[j].val
             mod *= len(cargs[j])
         }
         // Special case for equals: never compare same sequence of nodes
         if f == &equalStrFn {
-            if children[0].val == children[1].val {
+            if HashFuncBind(children[0]) == HashFuncBind(children[1]) {
                 continue
             }
         }
         // Commuting
         if f.commutes {
-            sort.Ints(idcs)
-            key := 0
-            for k := 0; k < len(cargs); k++ {
-                key += idcs[k]*IntPow(num, k)
+            // Canonicalize arguments by sorting in order of hashes
+            canon := make([]*canonArg, len(cargs))
+            for j := 0; j < len(cargs); j++ {
+                canon[j] = &canonArg{arg: args[j], child: children[j]}
+                HashFuncBind(children[j])
             }
-            // Commuting indices already evaluated
-            _, ok := checked[key]
-            if ok {
-                continue
+            sort.Slice(canon, func(i, j int) bool {
+                return canon[i].child.fhash < canon[j].child.fhash
+            })
+            for j := 0; j < len(cargs); j++ {
+                args[j] = canon[j].arg
+                children[j] = canon[j].child
             }
-            checked[key] = true
         }
         r := f.f(args)
-        // Nil means not suitable somehow
+        // Nil means not suitable
         if r == nil {
             continue
         }
         nn := makeNode(f, children, r, -1)
-        nn.addToRes(&res, hashes, disreg)
+        nn.addToResult(&res, hashes)
     }
     return res
 }
 
-func fAllNodes(fs []*fn, nodes []*node, hashes map[uint32]bool, disreg map[uint32]bool) []*node {
+func fAllNodes(fs []*fn, nodes []*node, hashes map[uint32]bool) []*node {
     res := make([]*node, 0)
     for _,f := range fs {
-        r := fNodes(f, nodes, hashes, disreg)
+        r := fNodes(f, nodes, hashes)
         res = append(res, r...)
     }
     return res
 }
 
-// TODO back to deep equals or hash equals?
-func fAllNodesMany(fs []*fn, nodes []*node, times int, disreg map[uint32]bool) []*node {
+func fAllNodesMany(fs []*fn, nodes []*node, times int) []*node {
     hashes := make(map[uint32]bool)
     for i := 0; i < times; i++ {
-        res := fAllNodes(fs, nodes, hashes, disreg)
+        res := fAllNodes(fs, nodes, hashes)
+        //res = setArgs(res)
         nodes = append(nodes, res...)
     }
     return nodes
@@ -170,7 +167,7 @@ func nodeFromPath(obj *object, path []string) *node {
     return n
 }
 
-func (n *node) hasSubnode(sn *node) bool {
+/*func (n *node) hasSubnode(sn *node) bool {
     if n.children == nil {
         return false
     }
@@ -180,22 +177,22 @@ func (n *node) hasSubnode(sn *node) bool {
         }
     }
     return false
-}
+}*/
 
-func getNodeArgs(nodes []*node, args []*node) []*nodeArgs {
-    res := make([]*nodeArgs, 0)
+func setArgs(nodes []*node) []*node {
     for _,n := range nodes {
-        created := false
-        for i,sn := range args {
-            if n.hasSubnode(sn) {
-                if !created {
-                    res = append(res, &nodeArg{n :n, args: make([]int,0)})
-                }
-                n.args = append(n.args, i)
+        n.args = make([]int, 0)
+        if n.bind != -1 {
+            n.args = append(n.args, n.bind)
+        } else {
+            setArgs(n.children)
+            for _,m := range n.children {
+                n.args = append(n.args, m.args...)
             }
         }
+        n.args = Unique(n.args)
     }
-    return res
+    return nodes
 }
 
 func getBoolNodes(nodes []*node) []*node {
@@ -208,13 +205,27 @@ func getBoolNodes(nodes []*node) []*node {
     return res
 }
 
+func getRequiredNodes(nodes []*node, reqArgs []int) []*node {
+    nodes = setArgs(nodes)
+    res := make([]*node, 0)
+    for _,n := range nodes {
+        for _,j := range n.args {
+            if IndexOf(reqArgs, j) != -1 {
+                res = append(res, n)
+                break
+            }
+        }
+    }
+    return res
+}
+
 func (n *node) eval() interface{} {
     if n.children != nil {
         args := make([]interface{}, 0)
         for _,c := range n.children {
             args = append(args, c.eval())
         }
-        n.val = f.f(args)
+        n.val = n.f.f(args)
         return n.val
     } else {
         return n.val
@@ -232,7 +243,7 @@ func (n *node) equals(other *node) bool {
         // Get property
         return n.val == other.val
     } 
-    for i=0; i<len(n.children); i++ {
+    for i:=0; i<len(n.children); i++ {
         if !n.children[i].equals(other.children[i]) {
             return false
         }

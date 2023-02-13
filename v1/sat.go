@@ -1,17 +1,22 @@
 package main
 
-type index struct {
-    nTerms int
-    nNodes int
-    curIdx int
-    idcs [4]int
+//import "fmt"
+
+func evalCombo(idx int, nodes []*node) bool {
+   switch len(nodes) {
+       case 1: return evalCombo1(idx, nodes)
+       case 2: return evalCombo2(idx, nodes)
+       case 3: return evalCombo3(idx, nodes)
+       case 4: return evalCombo4(idx, nodes)
+       default: return false
+   }
 }
 
-func evalCombo1(idx int, nodes []*nodeArgs) bool {
-    return (idx == 0) != nodes[0].val.(bool)
+func evalCombo1(idx int, nodes []*node) bool {
+    return ((idx & 1) == 1) != nodes[0].val.(bool)
 }
 
-func evalCombo2(idx int, nodes []*nodeArgs) bool {
+func evalCombo2(idx int, nodes []*node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
     r0 := nodes[0].val.(bool)
@@ -24,7 +29,7 @@ func evalCombo2(idx int, nodes []*nodeArgs) bool {
     }
 }
 
-func evalCombo3(idx int, nodes []*nodeArgs) bool {
+func evalCombo3(idx int, nodes []*node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
     n2 := ((idx >> 2) & 1) == 1
@@ -40,7 +45,7 @@ func evalCombo3(idx int, nodes []*nodeArgs) bool {
         return n0 != r0 || n1 != r1 || n2 != r2
     }
 }
-func evalCombo4(idx int, nodes []*nodeArgs) bool {
+func evalCombo4(idx int, nodes []*node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
     n2 := ((idx >> 2) & 1) == 1
@@ -63,7 +68,7 @@ func evalCombo4(idx int, nodes []*nodeArgs) bool {
     }
 }
 
-func hasNil(n int, nodes []*nodeArgs) bool {
+func hasNil(n int, nodes []*node) bool {
     for i := 0; i<n; i++ {
         if nodes[i] == nil {
             return true
@@ -72,8 +77,8 @@ func hasNil(n int, nodes []*nodeArgs) bool {
     return false
 }
 
-func hasMissingArgs(nargs int, nodes []*nodeArgs) bool {
-    got := [nargs]bool
+func hasMissingArgs(nargs int, nodes []*node) bool {
+    got := make([]bool, nargs)
     for _,n := range nodes {
         for _,i := range n.args {
             got[i] = true
@@ -87,25 +92,15 @@ func hasMissingArgs(nargs int, nodes []*nodeArgs) bool {
     return false
 }
 
-func evalCombo(n int, idx int, nodes []*nodeArgs) bool {
-   switch n {
-       case 1: return evalCombo1(idx, nodes)
-       case 2: return evalCombo2(idx, nodes)
-       case 3: return evalCombo3(idx, nodes)
-       case 4: return evalCombo4(idx, nodes)
-       default: return false
-   }
+func createIndex(n int, nNodes int) *index {
+    return &index{nTerms: n, nNodes: nNodes, curIdx: 0, idcs: [4]int{0,0,0,0}}
 }
 
-func createIndex(n int, nNodes int) index {
-    return index{nTerms: n, nNodes: nNodes, curIdx: 0, idcs: [4]int{0,0,0,0}}
+func (idx *index) done() bool {
+    return idx.curIdx == idx.nTerms
 }
 
-func (idx index) done() bool {
-    return idx.curIdx == nTerms
-}
-
-func (idx index) inc() {
+func (idx *index) inc() {
     for idx.curIdx < idx.nTerms && idx.idcs[idx.curIdx] == idx.nNodes-1 {
         idx.idcs[idx.curIdx] = 0
         idx.curIdx++
@@ -116,8 +111,8 @@ func (idx index) inc() {
     }
 }
 
-func (idx index) getCombo(row []*nodeArgs) []*nodeArgs {
-    nodes := make([]*nodeArgs, 0)
+func (idx *index) getCombo(row []*node) []*node {
+    nodes := make([]*node, 0)
     for i := 0; i < idx.nTerms; i++ {
         nodes = append(nodes, row[idx.idcs[i]])
     }
@@ -134,28 +129,32 @@ func subIdxFromTerms(nTerms int) int {
     }
 }
 
-// History is not used except to make pred
-func satisfy(int nargs, exs []*example, table [][]*nodeArgs, hist []*history) *pred {
+// Name, argTypes, history to be filled in later
+func satisfy(nargs int, exs []*example, table [][]*node) *pred {
     for n := 1; n <= 4; n++ {
         subIdx := subIdxFromTerms(n)
         for idx := createIndex(n, len(table[0])); !idx.done(); idx.inc() {
-            succ := true
-            out:
+            //fmt.Println(indexStr(idx))
             for i := 0; i < subIdx; i++ {
+                    /*if j > 2 {
+                        fmt.Println(i,subIdx)
+                    }*/
+                succ := true
+                var nodes []*node
                 for j,row := range table {
-                    nodes := idx.getCombo(row)
+                    nodes = idx.getCombo(row)
                     ex := exs[j]
                     if hasNil(n, nodes) || hasMissingArgs(nargs, nodes) {
                         succ = false
-                        break out
+                        break
                     }
-                    if evalCombo(n, i, nodes) != ex.val {
+                    if evalCombo(i, nodes) != ex.val {
                         succ = false
-                        break out
+                        break
                     }
                 }
-                if succ == true {
-                    return &pred{nodes: nodes, idx: 
+                if succ {
+                    return &pred{nodes: nodes, idx: i, name: "TEMP", argTypes: nil, exs: exs, hist: nil, fns: nil}
                 }
             }
         }
@@ -168,7 +167,7 @@ func satisfy(int nargs, exs []*example, table [][]*nodeArgs, hist []*history) *p
 // yields 1-2, 2-2 (i.e. just 2), 2-3
 // Probably not incorporated into final sat algorithm
 // For one, what if you need argument to appear in in multiple nodes (e.g. n1a1,n2a1,n3a1,n4a2)
-/*func argComb(int nargs, row []*nodeArgs) [][]int {
+/*func argComb(int nargs, row []*node) [][]int {
     sets := make([][]int, nargs)
     for i:=0; i<nargs; i++ {
         sets[i] = make([]int, 0)
