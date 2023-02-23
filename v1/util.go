@@ -1,12 +1,10 @@
 package main
 
 import (
-    "encoding/binary"
-    "hash/crc32"
     "reflect"
     "runtime"
     "sort"
-    "unsafe"
+    //"unsafe"
 )
 
 // https://stackoverflow.com/questions/7052693/how-to-get-the-name-of-a-function-in-go
@@ -14,6 +12,7 @@ func GetFunctionName(i interface{}) string {
     return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
 
+// Convenience
 func Ternary[T any](cond bool, a T, b T) T {
     if cond {
         return a
@@ -23,13 +22,15 @@ func Ternary[T any](cond bool, a T, b T) T {
 
 // Unique elements of array
 func Unique[T comparable](t []T) []T {
-    set := make(map[T]bool)
-    for _,e := range t {
-        set[e] = true
-    }
     uniq := make([]T, 0)
-    for e := range set {
-        uniq = append(uniq, e)
+    outer:
+    for i:=0; i<len(t); i++ {
+        for j:=0; j<len(uniq); j++ {
+            if t[i] == uniq[j] {
+                continue outer
+            }
+        }
+        uniq = append(uniq, t[i])
     }
     return uniq
 }
@@ -70,7 +71,7 @@ func GetKeys(props map[string]interface{}) []string {
 
 // Array Minus
 // Assumes sorted keys
-func StrArrMinus(keys1 []string, keys2 []string) []string {
+/*func StrArrMinus(keys1 []string, keys2 []string) []string {
     set := make([]string, 0)
     for i,j := 0,0; i < len(keys1); i++ {
         for j < len(keys2) && keys2[j] < keys1[i] {
@@ -102,10 +103,10 @@ func StrArrInt(keys1 []string, keys2 []string) []string {
         }
     }
     return set
-}
+}*/
 
 // Hashing functions
-func AppendPtr[T any](b []byte, ptr *T) []byte {
+/*func AppendPtr[T any](b []byte, ptr *T) []byte {
     addr := uint64(uintptr(unsafe.Pointer(ptr)))
     return binary.LittleEndian.AppendUint64(b, addr)
 }
@@ -145,36 +146,4 @@ func Hash(n *node) uint32 {
     c.Write(b)
     n.vhash = c.Sum32()
     return n.vhash
-}
-
-func AppendNode(b []byte, n *node) []byte {
-    if n.f != nil {
-        b = append(b, []byte(GetFunctionName(n.f.f))...)
-        //b = AppendPtr(b, n.f)
-    }
-    if n.bind != -1 {
-        return binary.LittleEndian.AppendUint32(b, uint32(n.bind))
-    }
-    // For props
-    if n.children == nil && n.bind == -1 {
-        switch n.val.(type) {
-            case string: b = append(b, []byte(n.val.(string))...)
-        }
-    }
-    for _,m := range n.children {
-        b = AppendNode(b, m)
-    }
-    return b
-}
-
-func HashFuncBind(n *node) uint32 {
-    if n.fhash != 0 {
-        return n.fhash
-    }
-    c := crc32.NewIEEE()
-    b := make([]byte, 0)
-    b = AppendNode(b, n)
-    c.Write(b)
-    n.fhash = c.Sum32() 
-    return n.fhash
-}
+}*/

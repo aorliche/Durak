@@ -4,12 +4,17 @@ import (
     "reflect"
 )
 
-func getProp(args []interface{}) interface{} {
-    return args[0].(*object).props[args[1].(string)];
+func GetProp(args []interface{}) interface{} {
+    return args[0].(*Object).Props[args[1].(string)];
 }
 
-func greaterRank(args []interface{}) interface{} {
-    i1 := IndexOf(ranks, args[0].(string)) 
+// Workaround for HasProp
+func Exists(args []interface{}) interface{} {
+    return true
+}
+
+func GreaterRank(args []interface{}) interface{} {
+    i1 := IndexOf(ranks, args[0].(string))
     i2 := IndexOf(ranks, args[1].(string))
     if i1 == -1 || i2 == -1 {
         return nil
@@ -17,18 +22,33 @@ func greaterRank(args []interface{}) interface{} {
     return i1 > i2
 }
 
-func equal(args []interface{}) interface{} {
+func Equal(args []interface{}) interface{} {
     return reflect.DeepEqual(args[0], args[1])
 }
 
 // Never called
+// Still used for its name in hashing and printouts
 // Special action in fNodes
-func expandList(args []interface{}) interface{} {
+// Also special action in pred.eval()
+// This is due to multiple return values
+func ExpandList(args []interface{}) interface{} {
     return nil
 }
 
-var getPropFn = fn{f: getProp, args: []string{"*object", "string"}}
-var greaterRankFn = fn{f: greaterRank, args: []string{"string", "string"}}
-var equalStrFn = fn{f: equal, args: []string{"string", "string"}, commutes: true}
-var expandPropsFn = fn{f: getProp, args: []string{"*object"}}
-var expandListFn = fn{f: expandList, args: []string{"[]any"}}
+var GetPropFn = Fn{F: GetProp, Args: []string{"*Object", "string"}}
+var GreaterRankFn = Fn{F: GreaterRank, Args: []string{"string", "string"}}
+var CardExistsFn = Fn{F: Exists, Args: []string{"card"}}
+var EqualStrFn = Fn{F: Equal, Args: []string{"string", "string"}, Commutes: true}
+var ExpandPropsFn = Fn{F: GetProp, Args: []string{"*Object"}}
+var ExpandListFn = Fn{F: ExpandList, Args: []string{"[]any"}}
+
+// For serialization
+func GetFnFromName(name string) *Fn {
+    list := []*Fn{&GetPropFn, &GreaterRankFn, &CardExistsFn, &EqualStrFn, &ExpandPropsFn, &ExpandListFn}
+    for _,f := range list {
+        if GetFunctionName(f.F) == name {
+            return f
+        }
+    }
+    return nil
+}

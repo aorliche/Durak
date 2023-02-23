@@ -1,63 +1,74 @@
 package main
 
 // Data types
-type object struct {
-    typ string
-    props map[string] interface{}
-    propTypes map[string] string
+// Either List or Props are used
+type Object struct {
+    Type string
+    Props map[string] interface{}
+    PropTypes map[string] string
 }
 
-type fnSig func([]interface{}) interface{}
+type FnSig func([]interface{}) interface{}
 
-type fn struct {
-    f fnSig
-    args []string
-    commutes bool
+type Fn struct {
+    F FnSig
+    Args []string
+    Commutes bool
 }
 
-type node struct {
-    f *fn
-    children []*node
-    val interface{}
-    bind int
-    args []int
-    vhash uint32
-    fhash uint32
+// Args is union of binds of self and children
+type Node struct {
+    F *Fn
+    Children []*Node
+    Val interface{}
+    Bind int
+    Args []int
+    SavHash uint32
 }
 
-// Canonicalize argument order for commuting fns like equal
-type canonArg struct {
-    arg interface{}
-    child *node
+// For serialization
+type NodeRec struct {
+    Name string         `json:"Name,omitempty"`
+    Children []*NodeRec `json:"Children,omitempty"`
+    Val string          `json:"Val,omitempty"`
+    Bind int
 }
 
-type example struct {
-    val bool
-    args []interface{}
+// Canonicalize argument order for commuting Fns like Equal
+type CanonArg struct {
+    Arg interface{}
+    Child *Node
 }
 
-type history struct {
-    nodes []*node
-    idx int
-    exs []*example
+type Example struct {
+    Val bool
+    Args []interface{}
 }
 
-// Number of nodes and idx determines how predicate is evaluated
-// evalCombo?() methods in sat.go
-// e.g. A~B, AB+~C, etc
-type pred struct {
-    nodes []*node
-    idx int
-    name string
-    argTypes []string
-    exs []*example
-    hist []*history
-    fns []*fn
+type Pred struct {
+    Nodes []*Node
+    Idx int
+    Name string
+    Args []string
 }
 
-type index struct {
-    nTerms int
-    nNodes int
-    curIdx int
-    idcs [4]int
+type PredOrNode struct {
+    n *Node
+    p *Pred
+}
+
+// For serialization
+type PredRec struct {
+    Nodes []*NodeRec
+    Idx int
+    Name string
+    Args []string
+}
+
+// For satisfiability search
+type Index struct {
+    NumTerms int
+    NumNodes int
+    CurIdx int
+    Idcs [4]int
 }

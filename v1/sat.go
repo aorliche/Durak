@@ -1,26 +1,91 @@
 package main
 
-//import "fmt"
+import "fmt"
 
-func evalCombo(idx int, nodes []*node) bool {
+func (idx *Index) ToStr() string {
+    s := fmt.Sprintf("%d %d %d", idx.NumTerms, idx.NumNodes, idx.CurIdx)
+    s += fmt.Sprint(idx.Idcs)
+    return s
+}
+
+func SatStr(n int, idx int) string {
+    switch n {
+        case 1: return SatStr1(idx)
+        case 2: return SatStr2(idx)
+        case 3: return SatStr3(idx)
+        case 4: return SatStr4(idx)
+        default: panic("bad")
+    }
+}
+
+func SatStr1(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    return n0 + "A"
+}
+
+func SatStr2(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    n1 := Ternary(((idx >> 1) & 1) == 1, "~", "")
+    split := idx >> 2
+    if split == 0 {
+        return n0 + "A" + n1 + "B"
+    } else {
+        return n0 + "A+" + n1 + "B"
+    }
+}
+
+func SatStr3(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    n1 := Ternary(((idx >> 1) & 1) == 1, "~", "")
+    n2 := Ternary(((idx >> 2) & 1) == 1, "~", "")
+    split := idx >> 3
+    if split == 0 {
+        return n0 + "A" + n1 + "B" + n2 + "C"
+    } else if split == 1 {
+        return n0 + "A+(" + n1 + "B" + n2 + "C)"
+    } else {
+        return n0 + "A+" + n1 + "B+" + n2 + "C"
+    }
+}
+
+func SatStr4(idx int) string {
+    n0 := Ternary((idx & 1) == 1, "~", "")
+    n1 := Ternary(((idx >> 1) & 1) == 1, "~", "")
+    n2 := Ternary(((idx >> 2) & 1) == 1, "~", "")
+    n3 := Ternary(((idx >> 3) & 1) == 1, "~", "")
+    split := idx >> 4
+    if split == 0 {
+        return n0 + "A" + n1 + "B" + n2 + "C" + n3 + "D"
+    } else if split == 1 {
+        return n0 + "A+(" + n1 + "B" + n2 + "C" + n3 + "D)"
+    } else if split == 2 {
+        return "(" + n0 + "A" + n1 + "B)+(" + n2 + "C" + n3 + "D)"
+    } else if split == 3 {
+        return n0 + "A+" + n1 + "B+(" + n2 + "C" + n3 + "D)"
+    } else {
+        return n0 + "A+" + n1 + "B+" + n2 + "C+" + n3 + "D"
+    }
+}
+
+func EvalCombo(idx int, nodes []*Node) bool {
    switch len(nodes) {
-       case 1: return evalCombo1(idx, nodes)
-       case 2: return evalCombo2(idx, nodes)
-       case 3: return evalCombo3(idx, nodes)
-       case 4: return evalCombo4(idx, nodes)
+       case 1: return EvalCombo1(idx, nodes)
+       case 2: return EvalCombo2(idx, nodes)
+       case 3: return EvalCombo3(idx, nodes)
+       case 4: return EvalCombo4(idx, nodes)
        default: return false
    }
 }
 
-func evalCombo1(idx int, nodes []*node) bool {
-    return ((idx & 1) == 1) != nodes[0].val.(bool)
+func EvalCombo1(idx int, nodes []*Node) bool {
+    return ((idx & 1) == 1) != nodes[0].Val.(bool)
 }
 
-func evalCombo2(idx int, nodes []*node) bool {
+func EvalCombo2(idx int, nodes []*Node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
-    r0 := nodes[0].val.(bool)
-    r1 := nodes[1].val.(bool)
+    r0 := nodes[0].Val.(bool)
+    r1 := nodes[1].Val.(bool)
     split := idx >> 2
     if split == 0 {
         return n0 != r0 && n1 != r1
@@ -29,13 +94,13 @@ func evalCombo2(idx int, nodes []*node) bool {
     }
 }
 
-func evalCombo3(idx int, nodes []*node) bool {
+func EvalCombo3(idx int, nodes []*Node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
     n2 := ((idx >> 2) & 1) == 1
-    r0 := nodes[0].val.(bool)
-    r1 := nodes[1].val.(bool)
-    r2 := nodes[2].val.(bool)
+    r0 := nodes[0].Val.(bool)
+    r1 := nodes[1].Val.(bool)
+    r2 := nodes[2].Val.(bool)
     split := idx >> 3
     if split == 0 {
         return n0 != r0 && n1 != r1 && n2 != r2
@@ -45,15 +110,15 @@ func evalCombo3(idx int, nodes []*node) bool {
         return n0 != r0 || n1 != r1 || n2 != r2
     }
 }
-func evalCombo4(idx int, nodes []*node) bool {
+func EvalCombo4(idx int, nodes []*Node) bool {
     n0 := (idx & 1) == 1
     n1 := ((idx >> 1) & 1) == 1
     n2 := ((idx >> 2) & 1) == 1
     n3 := ((idx >> 3) & 1) == 1
-    r0 := nodes[0].val.(bool)
-    r1 := nodes[1].val.(bool)
-    r2 := nodes[2].val.(bool)
-    r3 := nodes[3].val.(bool)
+    r0 := nodes[0].Val.(bool)
+    r1 := nodes[1].Val.(bool)
+    r2 := nodes[2].Val.(bool)
+    r3 := nodes[3].Val.(bool)
     split := idx >> 4
     if split == 0 {
         return n0 != r0 && n1 != r1 && n2 != r2 && n3 != r3
@@ -62,13 +127,13 @@ func evalCombo4(idx int, nodes []*node) bool {
     } else if split == 2 {
         return (n0 != r0 && n1 != r1) || (n2 != r2 && n3 != r3)
     } else if split == 3 {
-        return (n0 != r0) || (n1 != r1) || (n2 != r2 && n3 != r3) 
+        return (n0 != r0) || (n1 != r1) || (n2 != r2 && n3 != r3)
     } else {
         return n0 != r0 || n1 != r1 || n2 != r2 || n3 != r3
     }
 }
 
-func hasNil(n int, nodes []*node) bool {
+func HasNil(n int, nodes []*Node) bool {
     for i := 0; i<n; i++ {
         if nodes[i] == nil {
             return true
@@ -77,10 +142,10 @@ func hasNil(n int, nodes []*node) bool {
     return false
 }
 
-func hasMissingArgs(nargs int, nodes []*node) bool {
+func HasMissingArgs(nargs int, nodes []*Node) bool {
     got := make([]bool, nargs)
     for _,n := range nodes {
-        for _,i := range n.args {
+        for _,i := range n.Args {
             got[i] = true
         }
     }
@@ -92,34 +157,34 @@ func hasMissingArgs(nargs int, nodes []*node) bool {
     return false
 }
 
-func createIndex(n int, nNodes int) *index {
-    return &index{nTerms: n, nNodes: nNodes, curIdx: 0, idcs: [4]int{0,0,0,0}}
+func CreateIndex(n int, nNodes int) *Index {
+    return &Index{NumTerms: n, NumNodes: nNodes, CurIdx: 0, Idcs: [4]int{0,0,0,0}}
 }
 
-func (idx *index) done() bool {
-    return idx.curIdx == idx.nTerms
+func (idx *Index) Done() bool {
+    return idx.CurIdx == idx.NumTerms
 }
 
-func (idx *index) inc() {
-    for idx.curIdx < idx.nTerms && idx.idcs[idx.curIdx] == idx.nNodes-1 {
-        idx.idcs[idx.curIdx] = 0
-        idx.curIdx++
+func (idx *Index) Inc() {
+    for idx.CurIdx < idx.NumTerms && idx.Idcs[idx.CurIdx] == idx.NumNodes-1 {
+        idx.Idcs[idx.CurIdx] = 0
+        idx.CurIdx++
     }
-    if idx.curIdx < idx.nTerms {
-        idx.idcs[idx.curIdx]++
-        idx.curIdx = 0
+    if idx.CurIdx < idx.NumTerms {
+        idx.Idcs[idx.CurIdx]++
+        idx.CurIdx = 0
     }
 }
 
-func (idx *index) getCombo(row []*node) []*node {
-    nodes := make([]*node, 0)
-    for i := 0; i < idx.nTerms; i++ {
-        nodes = append(nodes, row[idx.idcs[i]])
+func (idx *Index) GetCombo(row []*Node) []*Node {
+    nodes := make([]*Node, 0)
+    for i := 0; i < idx.NumTerms; i++ {
+        nodes = append(nodes, row[idx.Idcs[i]])
     }
     return nodes
 }
 
-func subIdxFromTerms(nTerms int) int {
+func SubIdxFromTerms(nTerms int) int {
     switch nTerms {
         case 1: return 2
         case 2: return 8
@@ -129,37 +194,32 @@ func subIdxFromTerms(nTerms int) int {
     }
 }
 
-// Name, argTypes, history to be filled in later
-func satisfy(nargs int, exs []*example, table [][]*node) *pred {
+func Satisfy(nargs int, exs []*Example, table [][]*Node) ([]*Node, int) {
     for n := 1; n <= 4; n++ {
-        subIdx := subIdxFromTerms(n)
-        for idx := createIndex(n, len(table[0])); !idx.done(); idx.inc() {
-            //fmt.Println(indexStr(idx))
+        subIdx := SubIdxFromTerms(n)
+        for idx := CreateIndex(n, len(table[0])); !idx.Done(); idx.Inc() {
             for i := 0; i < subIdx; i++ {
-                    /*if j > 2 {
-                        fmt.Println(i,subIdx)
-                    }*/
                 succ := true
-                var nodes []*node
+                var nodes []*Node
                 for j,row := range table {
-                    nodes = idx.getCombo(row)
+                    nodes = idx.GetCombo(row)
                     ex := exs[j]
-                    if hasNil(n, nodes) || hasMissingArgs(nargs, nodes) {
+                    if HasNil(n, nodes) || HasMissingArgs(nargs, nodes) {
                         succ = false
                         break
                     }
-                    if evalCombo(i, nodes) != ex.val {
+                    if EvalCombo(i, nodes) != ex.Val {
                         succ = false
                         break
                     }
                 }
                 if succ {
-                    return &pred{nodes: nodes, idx: i, name: "TEMP", argTypes: nil, exs: exs, hist: nil, fns: nil}
+                    return nodes, i
                 }
             }
         }
     }
-    return nil
+    return nil, -1
 }
 
 // Combinations of nodes where each argument appears at least once

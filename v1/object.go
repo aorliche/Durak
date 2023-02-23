@@ -1,23 +1,30 @@
 package main
 
 import (
-    "reflect"
+    //"reflect"
 )
 
-func makeObject(typ string) *object {
-    obj := object{typ: typ, props: make(map[string]interface{}), propTypes: make(map[string]string)}
+func MakeObject(typ string) *Object {
+    obj := Object{Type: typ, Props: make(map[string]interface{}), PropTypes: make(map[string]string)}
     return &obj
 }
 
-func (obj *object) setProp(prop string, typ string, item interface{}) {
-    obj.props[prop] = item
-    obj.propTypes[prop] = typ
+func (obj *Object) SetProp(prop string, typ string, item interface{}) {
+    obj.Props[prop] = item
+    obj.PropTypes[prop] = typ
+}
+
+func (obj *Object) ToStr() string {
+    switch obj.Type {
+        case "card": return CardStr(obj)
+    }
+    return obj.Type
 }
 
 // TODO difference between states
 // TODO Closure returns path to all different nodes
 // TODO slices as property types
-func diffObjects(obj1 *object, obj2 *object, path []string) []([]string) {
+/*func diffObjects(obj1 *object, obj2 *object, path []string) []([]string) {
     keys1 := GetKeys(obj1.props)
     keys2 := GetKeys(obj2.props)
     diff := StrArrMinus(keys2, keys1)
@@ -41,4 +48,4 @@ func diffObjects(obj1 *object, obj2 *object, path []string) []([]string) {
         }
     }
     return res
-}
+}*/
