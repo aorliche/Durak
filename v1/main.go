@@ -63,7 +63,7 @@ func TestReadBeats() {
     fmt.Println(p.Eval())
 }
 
-func ExistsNodes() {
+/*func ExistsNodes() {
     c0 := MakeCard("8", "Spades")
     c1 := MakeCard("10", "Hearts")
     c2 := MakeCard("Queen", "Diamonds")
@@ -84,9 +84,9 @@ func ExistsNodes() {
     p.Nodes, p.Idx = Satisfy(3, exs, table)
     return p
 
-}
+}*/
 
-func LearnCover() {
+/*func LearnCover() {
     c0 := MakeCard("Jack", "Spades")
     c1 := MakeCard("10", "Hearts")
     c2 := MakeCard("Queen", "Spades")
@@ -95,7 +95,7 @@ func LearnCover() {
     c1.SetProp("covers", "card", c1)
     ex1 := MakeExample(true, []interface{}{g,c0,c1})
     ex2 := MakeExample(true, []interface{}{g,c0,c2})
-}
+}*/
 
 func main() {
     TestReadBeats()
