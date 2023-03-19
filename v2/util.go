@@ -21,12 +21,12 @@ func Ternary[T any](cond bool, a T, b T) T {
 }
 
 // Unique elements of array
-func Unique[T comparable](t []T) []T {
+func Unique[T any](t []T) []T {
     uniq := make([]T, 0)
     outer:
     for i:=0; i<len(t); i++ {
         for j:=0; j<len(uniq); j++ {
-            if t[i] == uniq[j] {
+            if reflect.DeepEqual(t[i], uniq[j]) {
                 continue outer
             }
         }
@@ -67,4 +67,13 @@ func GetKeys(props map[string]interface{}) []string {
     }
     sort.Strings(keys)
     return keys
+}
+
+// Concatenate multiple slices into one
+func Cat[T any](slices ...[]T) []T {
+    res := make([]T, 0)
+    for _,sl := range slices {
+        res = append(res, sl...)
+    }
+    return res
 }

@@ -44,6 +44,11 @@ func EqualStr(args []*Object) *Object {
     return MakeBoolObject(args[0].Val.(string) == args[1].Val.(string))
 }
 
+// Never include this or other functions taking any bool args in Fns!
+func Not(args []*Object) *Object {
+    return MakeBoolObject(!args[0].Val.(bool))
+}
+
 var GetPropFn = Fn{A: GetProp, Args: []string{"Object", "string"}}
 var ExpandPropsFn = Fn{A: GetProp, Args: []string{"Object"}}
 var EmptyFn = Fn{A: Empty, Args: []string{"slice"}}
@@ -52,15 +57,13 @@ var FirstFn = Fn{A: First, Args: []string{"slice|pair"}}
 var SecondFn = Fn{A: Second, Args: []string{"slice|pair"}}
 var GreaterRankFn = Fn{A: GreaterRank, Args: []string{"string", "string"}}
 var EqualStrFn = Fn{A: EqualStr, Args: []string{"string", "string"}, Commutes: true}
+var NotFn = Fn{A: Not, Args: []string{"bool"}}
 
 func GetName(f *Fn) string {
     if f.A != nil {
         return GetFunctionName(f.A)
     } 
-    if f.N != nil {
-        return GetName(f.N.F)
-    }
-    return GetName(f.F.Pred)
+    return f.Name
 }
 
 // For serialization

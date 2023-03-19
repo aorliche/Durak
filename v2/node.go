@@ -171,8 +171,8 @@ func ApplyFnNodes(f *Fn, nodes []*Node, hashes map[uint32]bool) []*Node {
             children[j] = nodes[idx]
             mod *= len(cargs[j])
         }
-        // Special case for equals: never compare same sequence of nodes
-        if f == &EqualStrFn {
+        // Special case for equals and greater rank: never compare same sequence of nodes
+        if f == &EqualStrFn || f == &GreaterRankFn {
             if children[0].Hash() == children[1].Hash() {
                 continue
             }
@@ -198,6 +198,11 @@ func ApplyFnNodes(f *Fn, nodes []*Node, hashes map[uint32]bool) []*Node {
         }
         n := MakeNode(f, children, r, -1)
         n.AddToResult(&res, hashes)
+        // Bool nodes also get their negation
+        if n.Type == "bool" {
+            m := MakeNode(&NotFn, []*Node{n}, Not([]*Object{r}), -1)
+            m.AddToResult(&res, hashes)
+        }
     }
     return res
 }

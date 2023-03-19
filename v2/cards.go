@@ -4,6 +4,7 @@ import (
     "fmt"
 )
 
+var suits = []string{"Clubs", "Spades", "Hearts", "Diamonds"}
 var ranks = []string{"6", "7", "8", "9", "10", "Jack", "Queen", "King", "Ace"}
 
 func MakeCardObject(rank string, suit string) *Object {
@@ -41,6 +42,6 @@ func PlayerStr(p *Object) string {
 }
 
 func GameStr(game *Object) string {
-    str := fmt.Sprint("Game")
+    str := fmt.Sprintf("Game Trump: %s", game.Props["trump"].ToStr())
     return str
 }

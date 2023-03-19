@@ -58,7 +58,7 @@ func SliceStr(obj *Object) string {
             return fmt.Sprintf("[Slice Len: %d Type: %s]", len(sl), typ)
         }
     } else {
-        return "[] Empty Slice"
+        return "[]"
     }
 }
 
