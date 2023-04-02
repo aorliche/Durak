@@ -18,6 +18,12 @@ type Game struct {
     Turn int
 }
 
+type GameState struct {
+    Board *Board
+    Deck int
+    Trump *Card
+}
+
 type Board struct {
     Plays []*Card
     Covers []*Card
