@@ -27,18 +27,18 @@ func GetPlayerIdx(w http.ResponseWriter, req *http.Request) int {
     return idx
 }
 
-func SendGameState(w http.ResponseWriter, req *http.Request) {
-    state := GameState{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump}
-    jsn,_ := json.Marshal(state)
+func NewGame(w http.ResponseWriter, req *http.Request) {
+    game = InitGame()
+    actions := make([][]*Action, 0)
+    for _,p := range game.Players {
+        actions = append(actions, game.PlayerActions(p))
+    }
+    upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.Players, Actions: actions}
+    jsn,_ := json.Marshal(upd)
     fmt.Fprintf(w, "%s\n", jsn)
 }
 
-func NewGame(w http.ResponseWriter, req *http.Request) {
-    game = InitGame()
-    SendGameState(w, req)
-}
-
-func GetHand(w http.ResponseWriter, req *http.Request) {
+/*func GetHand(w http.ResponseWriter, req *http.Request) {
     if BadGame(w, req) {
         return
     }
@@ -48,7 +48,7 @@ func GetHand(w http.ResponseWriter, req *http.Request) {
     }
     jsn,_ := json.Marshal(game.Players[idx].Hand)
     fmt.Fprintf(w, "%s\n", jsn)
-}
+}*/
 
 func GetActions(w http.ResponseWriter, req *http.Request) {
     if BadGame(w, req) {
@@ -67,14 +67,20 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     if BadGame(w, req) {
         return
     }
-    idx := GetPlayerIdx(w, req)
-    if idx == -1 {
-        return 
-    }
     var act Action
     json.NewDecoder(req.Body).Decode(&act)
+    if act.Verb == "" {
+        return
+    }
     jsn,_ := json.Marshal(act)
-    fmt.Println(jsn)
+    fmt.Printf("%s\n", jsn)
+    err := game.TakeAction(&act) 
+    update := ActionResponse{
+        Success: err == nil, 
+        Actions: game.PlayerActions(game.Players[act.PlayerIdx]),
+    }
+    jsn,_ = json.Marshal(update)
+    fmt.Fprintf(w, "%s\n", jsn)
 }
 
 type HFunc func (http.ResponseWriter, *http.Request)
@@ -91,7 +97,6 @@ func Headers(fn HFunc) HFunc {
 
 func main() {
     http.HandleFunc("/game", Headers(NewGame))
-    http.HandleFunc("/hand", Headers(GetHand))
     http.HandleFunc("/actions", Headers(GetActions))
     http.HandleFunc("/action", Headers(TakeAction))
     http.ListenAndServe("0.0.0.0:8080", nil)

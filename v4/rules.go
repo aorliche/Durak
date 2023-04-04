@@ -1,9 +1,10 @@
 package main
 
 import (
+    //"encoding/json"
     "fmt"
     "math/rand"
-    //"reflect"
+    "reflect"
     "strings"
     T "gorgonia.org/tensor"
 )
@@ -15,7 +16,7 @@ func (this *Card) Beats(other *Card, trumpSuit string) bool {
     if this.Suit == trumpSuit && this.Suit != other.Suit {
         return true
     }
-    return IndexOf(ranks, this.Rank) > IndexOf(ranks, other.Rank) && other.Suit != trumpSuit
+    return IndexOf(ranks, this.Rank) > IndexOf(ranks, other.Rank) && this.Suit == other.Suit
 }
 
 func (card *Card) ToStr() string {
@@ -76,21 +77,22 @@ func (game *Game) AttackerActions() []*Action {
     p := game.GetAttacker()
     if game.BoardSize() == 0 {
         for _,card := range p.Hand {
-            act := Action{PlayerName: p.Name, Mode: "Attack", Card: card}
+            act := Action{PlayerIdx: p.Idx, Verb: "Attack", Card: card}
             res = append(res, &act)
         }
     } else {
         for _,bc := range Cat(game.Board.Plays, game.Board.Covers) {
             for _,pc := range p.Hand {
-                if bc.Rank == pc.Rank && IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
-                    act := Action{PlayerName: p.Name, Mode: "Attack", Card: pc}
+                // Unique actions
+                if bc != nil && bc.Rank == pc.Rank && IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
+                    act := Action{PlayerIdx: p.Idx, Verb: "Attack", Card: pc}
                     res = append(res, &act)
                 }
             }
         }
     }
     if len(game.Board.Plays) > 0 {
-        act := Action{PlayerName: p.Name, Mode: "Pass"}
+        act := Action{PlayerIdx: p.Idx, Verb: "Pass"}
         res = append(res, &act)
     }
     return res
@@ -102,23 +104,53 @@ func (game *Game) DefenderActions() []*Action {
     for _,bp := range game.Board.Plays {
         for _,pc := range p.Hand {
             if pc.Beats(bp, game.Trump.Suit) {
-                act := Action{PlayerName: p.Name, Mode: "Defend", Card: pc, Cover: bp}
+                act := Action{PlayerIdx: p.Idx, Verb: "Defend", Card: pc, Cover: bp}
                 res = append(res, &act)
             }
         }
     }
-    if len(game.Board.Plays) > 0 && len(game.Board.Covers) < len(game.Board.Plays) {
-        act := Action{PlayerName: p.Name, Mode: "Pickup"}
+    // Get non-nil covers
+    cLen := Count(game.Board.Covers, func (c *Card) bool {return c != nil})
+    if len(game.Board.Plays) > 0 && cLen < len(game.Board.Plays) {
+        act := Action{PlayerIdx: p.Idx, Verb: "Pickup"}
         res = append(res, &act)
     }
     return res
+}
+
+func (game *Game) TakeAction(act *Action) error {
+    valid := false
+    p := game.Players[act.PlayerIdx]
+    //fmt.Println("---")
+    for _,a := range game.PlayerActions(p) {
+        //jsn,_ := json.Marshal(a)
+        //fmt.Printf("%s\n", jsn)
+        if reflect.DeepEqual(a, act) {
+            valid = true
+            break
+        }
+    }
+    if !valid {
+        return fmt.Errorf("Invalid action")
+    }
+    switch act.Verb {
+        case "Attack": {
+            p.Hand = Remove(p.Hand, act.Card)
+            for _,c := range p.Hand {
+                fmt.Println(c.Rank, c.Suit)
+            }
+            game.Board.Plays = append(game.Board.Plays, act.Card)
+            game.Board.Covers = append(game.Board.Covers, nil)
+        }
+    }
+    return nil
 }
 
 func (act *Action) ToTensor(game *Game) T.Tensor {
     rankFeat := float64(IndexOf(ranks, act.Card.Rank))
     suitFeat := float64(Ternary(act.Card.Suit == game.Trump.Suit, 1, 0))
     boardSizeFeat := float64(game.BoardSize())
-    handSizeFeat := float64(len(game.PlayerFromName(act.PlayerName).Hand))
+    handSizeFeat := float64(len(game.Players[act.PlayerIdx].Hand))
     back := []float64{rankFeat, suitFeat, boardSizeFeat, handSizeFeat}
     return T.New(T.WithShape(2), T.WithBacking(back))
 }
@@ -179,9 +211,4 @@ func InitGame() *Game {
     game.DealAll()
     return &game
 }
-
-/*func main() {
-    game := InitGame()
-    fmt.Println(game.ToStr())
-}*/
 

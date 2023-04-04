@@ -7,7 +7,15 @@
 </head>
 <body>
     <h1>Computer Durak</h1>
+    <div id='top'>
+        <button id='p1pass'>Pass</button>
+        <button id='p1pickup'>Pickup</button>
+    </div>
 	<canvas id='durak-canvas' width='800' height='500'></canvas>
+    <div id='bottom'>
+        <button id='p0pass'>Pass</button>
+        <button id='p0pickup'>Pickup</button>
+    </div>
     <!--<img src='cards/fronts/spades_6.png' alt='6 of spades'>-->
 </body>
 </html>

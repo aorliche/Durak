@@ -4,6 +4,28 @@ import (
     "reflect"
 )
 
+// Count number meeting condition
+func Count[T any](slice []T, fn func (T) bool) int {
+    n := 0
+    for _,v := range slice {
+        if fn(v) {
+            n++
+        }
+    }
+    return n
+}
+
+// Remove object
+func Remove[T any](slice []T, val T) []T {
+    idx := IndexOf(slice, val)
+    last := len(slice)-1
+    if idx != -1 {
+        slice[idx] = slice[last]
+        slice = slice[:last]
+    }
+    return slice
+}
+
 // Generic IndexOf
 func IndexOf[T any](slice []T, val T) int {
     for idx, v := range slice {

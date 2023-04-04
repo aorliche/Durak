@@ -18,10 +18,22 @@ type Game struct {
     Turn int
 }
 
-type GameState struct {
+type ActionResponse struct {
+    Success bool
+    Actions []*Action
+}
+
+type ActionsUpdate struct {
+    PlayerIdx int
+    Actions []*Action
+}
+
+type GameUpdate struct {
     Board *Board
     Deck int
     Trump *Card
+    Players []*Player
+    Actions [][]*Action
 }
 
 type Board struct {
@@ -43,8 +55,8 @@ type Card struct {
 
 // No card matching, only predefined actions
 type Action struct {
-    PlayerName string
-    Mode string     // Attack Defend Pickup Pass (Reverse later)
+    PlayerIdx int
+    Verb string     // Attack Defend Pickup Pass (Reverse later)
     Card *Card      // When covering Card covers Cover
     Cover *Card   
 }

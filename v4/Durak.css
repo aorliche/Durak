@@ -1,3 +1,17 @@
 #durak-canvas {
     border: 1px solid black;
 }
+#top, #bottom {
+    position: relative;
+    font-size: 18px;
+    width: 120px;
+    height: 0px;
+}
+#top {
+    top: 10px;
+    left: 10px;
+}
+#bottom {
+    top: -40px;
+    left: 10px;
+}

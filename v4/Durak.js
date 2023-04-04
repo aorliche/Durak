@@ -80,6 +80,15 @@ class Board {
         this.covers.forEach(c => c ? c.draw(ctx, true) : null); 
     }
 
+    init(obj) {
+        this.plays = obj.Plays.map(c => {
+            new Card(cardIndexFromObj(c));
+        });
+        this.covers = obj.Covers.map(c => {
+            new Card(cardIndexFromObj(c));
+        });
+    }
+
     layout() {
         if (this.plays.length == 0) {
             return;
@@ -106,29 +115,22 @@ class Board {
             }
         }
     }
-
-    update(obj) {
-        this.plays = obj.Plays.map(c => {
-            new Card(cardIndexFromObj(c));
-        });
-        this.covers = obj.Covers.map(c => {
-            new Card(cardIndexFromObj(c));
-        });
-    }
 }
 
 class Game {
     constructor() {
         this.players = [new Player(0, true), new Player(1, true)]; 
-        this.board = new Board([new Card(0), new Card(15)], [new Card(1), null]);
+        this.board = new Board();
         fetch('http://10.100.205.6:8080/game')
         .then(resp => resp.json())
-        //.then(text => console.log(text))
-        .then(json => this.update(json))
+        .then(json => {
+            console.log(json);
+            this.init(json)
+        })
         .catch(err => console.log(err));
-        this.players[0].pollHand();
-        this.players[1].pollHand();
         this.dragging = null;
+        this.pending = false;
+        this.initButtons();
     }
 
     down(e) {
@@ -166,6 +168,35 @@ class Game {
         const [card, area, player] = this.over(e);
         if (card && area == 'hand') {
             card.hovering = true;
+        }
+    }
+    
+    init(json) {
+        this.deck = new Card(0);
+        this.trump = new Card(cardIndexFromObj(json.Trump));
+        this.board.init(json.Board);
+        this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[0].actions = json.Actions[0].map(a => new Action(a));
+        this.players[1].actions = json.Actions[1].map(a => new Action(a));
+    }
+
+    initButtons() {
+        for (let i=0; i<2; i++) {
+            const passb = $(`#p${i}pass`);
+            const pickupb = $(`#p${i}pickup`);
+
+            this.players[i].passb = passb;
+            this.players[i].pickupb = pickupb;
+
+            passb.disabled = true;
+            pickupb.disabled = true;
+
+            bpass.addEventListener('click', e => {
+                e.preventDefault();
+                //if (e.target.disabled) return;
+                console.log('passed');
+            }
         }
     }
 
@@ -229,28 +260,91 @@ class Game {
     }
 
     up(e) {
-        if (this.dragging) {
-            const [card, area, player] = this.over(e);
-            if (card && area == 'board') {
-                // this.over checks whether covers is empty
-                const i = this.board.plays.indexOf(card);
-                this.board.covers[i] = this.dragging;
-            } else if (area == 'board') {
-                this.board.plays.push(this.dragging);
-                this.board.covers.push(null);
-            } else {
-                this.dragging.player.hand.push(this.dragging);
+        if (!this.dragging) {
+            return;
+        }
+        let taken = false;
+        const [card, area, player] = this.over(e);
+        const actions = this.dragging.player.actions;
+        if (game.pending) {
+            // Wait for response for last action
+        } else if (card && area == 'board') {
+            // this.over checks whether covers is empty
+            for (let i=0; i<actions.length; i++) {
+                const cur = actions[i];
+                if (cur.verb == 'Defend' && cur.card.i == this.dragging.i && cur.cover.i == card.i) {
+                    const i = this.board.plays.indexOf(card);
+                    this.board.covers[i] = this.dragging;
+                    taken = true;
+                    cur.take();
+                    break;
+                }
             }
-            this.dragging.dragging = false;
-            this.dragging.hovering = false;
-            this.dragging = null;
+        } else if (area == 'board') {
+            for (let i=0; i<actions.length; i++) {
+                const cur = actions[i];
+                if (cur.verb == 'Attack' && cur.card.i == this.dragging.i) {
+                    this.board.plays.push(this.dragging);
+                    this.board.covers.push(null);
+                    taken = true;
+                    cur.take();
+                    break;
+                }
+            }
+        }
+        if (!taken) {
+            this.dragging.player.hand.push(this.dragging);
+        }
+        this.dragging.dragging = false;
+        this.dragging.hovering = false;
+        this.dragging = null;
+    }
+}
+
+class Action {
+    constructor(obj) {
+        this.orig = obj;
+        this.pidx = obj.PlayerIdx;
+        this.verb = obj.Verb;
+        this.card = null;
+        if (["Attack", "Defend", "Reverse"].includes(obj.Verb)) {
+            this.card = new Card(cardIndexFromObj(obj.Card));
+        } 
+        this.cover = obj.Cover ? new Card(cardIndexFromObj(obj.Cover)) : null;
+    }
+
+    rollback() {
+        switch (this.verb) {
+            case "Attack": {
+                game.players[this.pidx].hand.push(this.card);
+                game.board.plays.splice(game.board.plays.indexOf(this.card), 1);
+                break;
+            }
         }
     }
 
-    update(json) {
-        this.deck = json.Deck > 1 ? new Card(0) : null;
-        this.trump = new Card(cardIndexFromObj(json.Trump));
-        this.board.update(json.Board);
+    take() {
+        game.pending = true;
+        fetch('http://10.100.205.6:8080/action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(this.orig)
+        })
+        .then(resp => resp.json())
+        .then(json => {
+            console.log(json);
+            game.pending = false;
+            if (!json.Success) {
+                this.rollback();
+            } else {
+                // Update actions for other player
+                game.players[1-this.orig.PlayerIdx].updateActions();
+            }
+            game.players[this.orig.PlayerIdx].actions = json.Actions.map(act => new Action(act));
+        })
+        .catch(err => console.log(err));
     }
 }
 
@@ -259,6 +353,7 @@ class Player {
         this.n = n;
         this.show = show;
         this.hand = [];
+        this.actions = [];
     }
 
     draw(ctx) {
@@ -282,17 +377,14 @@ class Player {
         }
     }
 
-    pollHand() {
-        fetch(`http://10.100.205.6:8080/hand?p=${this.n}`)
+    updateActions() {
+        fetch(`http://10.100.205.6:8080/actions?p=${this.n}`)
         .then(resp => resp.json())
         .then(json => {
-            this.hand = [];
-            json.forEach(c => {
-                const i = cardIndexFromObj(c) 
-                this.hand.push(new Card(i));
-            })
+            this.actions = json.map(act => new Action(act));
         })
         .catch(err => console.log(err));
+
     }
 }
 
@@ -313,8 +405,6 @@ class Card {
             const [cx, cy] = [m.a*ex + m.c*ey + m.e, m.b*ex + m.d*ey + m.f];
             inside = cx > 0 && cx < w && cy > 0 && cy < h;
         });
-        //const m = this.xform();
-        //if (this.i == 15) console.log(cx, cy, w, h, inside);
         return inside;
     }
 
@@ -324,7 +414,6 @@ class Card {
             case true: img = cardImages[this.i]; break;
             case false: img = cardBackImage; break;
         }
-        //this.drawRotated(ctx, img);
         this.xform((x,y,w,h,m) => {
             ctx.drawImage(img,0,0,w,h);
         });
@@ -346,19 +435,6 @@ class Card {
         }
         ctx.restore();
     }
-	
-    /*drawRotated(ctx, img, cb) {
-        const w = scale*img.naturalWidth;
-        const h = scale*img.naturalHeight;
-        const y = this.hovering ? this.y-20 : this.y;
-		ctx.save();
-		ctx.translate(this.x, y);
-		ctx.rotate(this.theta);
-		ctx.translate(-w/2, -h/2);
-		if (img) ctx.drawImage(img,0,0,w,h);
-		if (cb) cb(ctx, w, h);
-		ctx.restore();
-	}*/
 }
 
 window.addEventListener('load', e => {
@@ -376,18 +452,24 @@ window.addEventListener('load', e => {
     canvas.addEventListener('mousedown', e => {
         if (!game) return;
         game.down(e);
-        game.draw(ctx);
     });
 
     canvas.addEventListener('mouseup', e => {
         if (!game) return;
         game.up(e);
-        game.draw(ctx);
     });
 
     canvas.addEventListener('mouseout', e => {
         if (!game) return;
         game.out(e);
-        game.draw(ctx);
     });
+
+    /*function anim(ts) {
+        if (game) {
+            game.draw(ctx);
+        }
+        setTimeout(requestAnimationFrame(anim), 100);
+    }
+
+    anim();*/
 });
