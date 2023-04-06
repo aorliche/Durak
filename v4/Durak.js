@@ -147,13 +147,18 @@ class Game {
 
     draw(ctx) {
         ctx.clearRect(0, 0, 800, 500);
+        this.layout();
+        if (this.trump) this.trump.draw(ctx, true);
+        if (this.deck) {
+            this.deck.draw(ctx, false);
+            ctx.font = 'bold 48px sans';
+            ctx.fillStyle = 'red';
+            ctx.fillText(this.decksize,670,60);
+        }
         this.players.forEach(p => {
             p.draw(ctx);
         });
         this.board.draw(ctx);
-        this.layout();
-        if (this.trump) this.trump.draw(ctx, true);
-        if (this.deck) this.deck.draw(ctx, false);
         if (this.dragging) {
             this.dragging.draw(ctx, true);
         }
@@ -174,11 +179,12 @@ class Game {
     init(json) {
         this.deck = new Card(0);
         this.trump = new Card(cardIndexFromObj(json.Trump));
-        this.board.init(json.Board);
+        this.update(json);
+        /*this.board.init(json.Board);
         this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
         this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
         this.players[0].actions = json.Actions[0].map(a => new Action(a));
-        this.players[1].actions = json.Actions[1].map(a => new Action(a));
+        this.players[1].actions = json.Actions[1].map(a => new Action(a));*/
     }
 
     initButtons() {
@@ -192,11 +198,34 @@ class Game {
             passb.disabled = true;
             pickupb.disabled = true;
 
-            bpass.addEventListener('click', e => {
+            passb.player = this.players[i];
+            pickupb.player = this.players[i];
+
+            passb.addEventListener('click', e => {
                 e.preventDefault();
-                //if (e.target.disabled) return;
                 console.log('passed');
-            }
+                try {
+                    e.target.player.actions.forEach(act => {
+                        if (act.verb == 'Pass') {
+                            act.take();
+                            throw 0;
+                        }
+                    });
+                } catch {}
+            });
+
+            pickupb.addEventListener('click', e => {
+                e.preventDefault();
+                console.log('pickup');
+                try {
+                    e.target.player.actions.forEach(act => {
+                        if (act.verb == 'Pickup') {
+                            act.take();
+                            throw 0;
+                        }
+                    });
+                } catch {}
+            });
         }
     }
 
@@ -299,6 +328,22 @@ class Game {
         this.dragging.hovering = false;
         this.dragging = null;
     }
+
+    // Same object as passed to init
+    update(json) {
+        this.decksize = json.Deck;
+        if (json.Deck < 2) {
+            this.deck = null;
+        }
+        if (json.Deck < 1) {
+            this.trump = null;
+        }
+        this.board.init(json.Board);
+        this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[0].actions = json.Actions[0].map(a => new Action(a));
+        this.players[1].actions = json.Actions[1].map(a => new Action(a));
+    }
 }
 
 class Action {
@@ -334,15 +379,22 @@ class Action {
         })
         .then(resp => resp.json())
         .then(json => {
+            console.log(this.orig.PlayerIdx);
             console.log(json);
             game.pending = false;
-            if (!json.Success) {
+            if (this.verb == 'Pass') {
+                game.update(json);
+                game.players[0].updateButtons();
+                game.players[1].updateButtons();
+                return;
+            } else if (!json.Success) {
                 this.rollback();
             } else {
                 // Update actions for other player
-                game.players[1-this.orig.PlayerIdx].updateActions();
+                game.players[1-this.orig.PlayerIdx].fetchActions();
             }
             game.players[this.orig.PlayerIdx].actions = json.Actions.map(act => new Action(act));
+            game.players[this.orig.PlayerIdx].updateButtons();
         })
         .catch(err => console.log(err));
     }
@@ -363,6 +415,16 @@ class Player {
         });
     }
 
+    fetchActions() {
+        fetch(`http://10.100.205.6:8080/actions?p=${this.n}`)
+        .then(resp => resp.json())
+        .then(json => {
+            this.actions = json.map(act => new Action(act));
+            this.updateButtons();
+        })
+        .catch(err => console.log(err));
+    }
+
     layout() {
         const n = this.hand.length;
         const cx = 400;
@@ -377,14 +439,18 @@ class Player {
         }
     }
 
-    updateActions() {
-        fetch(`http://10.100.205.6:8080/actions?p=${this.n}`)
-        .then(resp => resp.json())
-        .then(json => {
-            this.actions = json.map(act => new Action(act));
-        })
-        .catch(err => console.log(err));
-
+    updateButtons() {
+        let [pass, pickup] = [false, false];
+        this.actions.forEach(a => {
+            if (a.verb == 'Pass') {
+                pass = true;
+            }
+            if (a.verb == 'Pickup') {
+                pickup = true;
+            }
+        });
+        this.passb.disabled = !pass;
+        this.pickupb.disabled = !pickup;
     }
 }
 
@@ -463,6 +529,12 @@ window.addEventListener('load', e => {
         if (!game) return;
         game.out(e);
     });
+
+    setInterval(() => {
+        if (game) {
+            game.draw(ctx);
+        }
+    }, 100);
 
     /*function anim(ts) {
         if (game) {

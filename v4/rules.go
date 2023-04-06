@@ -72,6 +72,10 @@ func (game *Game) PlayerActions(p *Player) []*Action {
     }
 }
 
+func (board *Board) Covered() int {
+    return Count(board.Covers, func (c *Card) bool {return c != nil})
+}
+
 func (game *Game) AttackerActions() []*Action {
     res := make([]*Action, 0)
     p := game.GetAttacker()
@@ -81,7 +85,7 @@ func (game *Game) AttackerActions() []*Action {
             res = append(res, &act)
         }
     } else {
-        for _,bc := range Cat(game.Board.Plays, game.Board.Covers) {
+        for _,bc := range Cat(game.Board.Plays, NotNil(game.Board.Covers)) {
             for _,pc := range p.Hand {
                 // Unique actions
                 if bc != nil && bc.Rank == pc.Rank && IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
@@ -91,7 +95,7 @@ func (game *Game) AttackerActions() []*Action {
             }
         }
     }
-    if len(game.Board.Plays) > 0 {
+    if game.PickingUp || game.Board.Covered() == len(game.Board.Plays) {
         act := Action{PlayerIdx: p.Idx, Verb: "Pass"}
         res = append(res, &act)
     }
@@ -100,6 +104,9 @@ func (game *Game) AttackerActions() []*Action {
 
 func (game *Game) DefenderActions() []*Action {
     res := make([]*Action, 0)
+    if game.PickingUp {
+        return res
+    }
     p := game.GetDefender()
     for _,bp := range game.Board.Plays {
         for _,pc := range p.Hand {
@@ -110,15 +117,14 @@ func (game *Game) DefenderActions() []*Action {
         }
     }
     // Get non-nil covers
-    cLen := Count(game.Board.Covers, func (c *Card) bool {return c != nil})
-    if len(game.Board.Plays) > 0 && cLen < len(game.Board.Plays) {
+    if len(game.Board.Plays) > 0 && game.Board.Covered() < len(game.Board.Plays) {
         act := Action{PlayerIdx: p.Idx, Verb: "Pickup"}
         res = append(res, &act)
     }
     return res
 }
 
-func (game *Game) TakeAction(act *Action) error {
+func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
     valid := false
     p := game.Players[act.PlayerIdx]
     //fmt.Println("---")
@@ -131,19 +137,54 @@ func (game *Game) TakeAction(act *Action) error {
         }
     }
     if !valid {
-        return fmt.Errorf("Invalid action")
+        return nil,fmt.Errorf("Invalid action")
     }
+    //fmt.Println(act.Verb)
     switch act.Verb {
         case "Attack": {
             p.Hand = Remove(p.Hand, act.Card)
-            for _,c := range p.Hand {
-                fmt.Println(c.Rank, c.Suit)
-            }
             game.Board.Plays = append(game.Board.Plays, act.Card)
             game.Board.Covers = append(game.Board.Covers, nil)
         }
+        case "Defend": {
+            p.Hand = Remove(p.Hand, act.Card)
+            idx := IndexOf(game.Board.Plays, act.Cover)
+            game.Board.Covers[idx] = act.Card
+        }
+        case "Pickup": {
+            /*p.Hand = append(p.Hand, Cat(game.Board.Plays, game.Board.Covers)...)
+            p.Board.Plays = make([]*Card,0)
+            p.Board.Covers = make([]*Card,0)*/
+            game.PickingUp = true
+        }
+        case "Pass": {
+            if game.Board.Covered() < len(game.Board.Plays) {
+                game.GetDefender().Hand = append(game.GetDefender().Hand, 
+                    Cat(game.Board.Plays, NotNil(game.Board.Covers))...) 
+            }
+            game.Board.Plays = make([]*Card,0)
+            game.Board.Covers = make([]*Card,0)
+            game.Deal(game.GetAttacker())
+            game.Deal(game.GetDefender())
+            game.Turn += 1
+            if !game.PickingUp {
+                game.Defender = 1-game.Defender
+            }
+            actions := make([][]*Action,0)
+            for _,p := range game.Players {
+                actions = append(actions, game.PlayerActions(p))
+            }
+            game.PickingUp = false
+            return &GameUpdate{
+                Board: game.Board, 
+                Deck: len(game.Deck), 
+                Trump: game.Trump, 
+                Players: game.Players, 
+                Actions: actions,
+            }, nil
+        }
     }
-    return nil
+    return nil,nil
 }
 
 func (act *Action) ToTensor(game *Game) T.Tensor {
@@ -206,7 +247,14 @@ func (game *Game) ToStr() string {
 }
 
 func InitGame() *Game {
-    game := Game{Deck: InitDeck(), Board: InitBoard(), Turn: 0, Discard: make([]*Card, 0), Players: []*Player{InitPlayer(0), InitPlayer(1)}, Defender: 1}
+    game := Game{
+        Deck: InitDeck(), 
+        Board: InitBoard(), 
+        Turn: 0, 
+        Discard: make([]*Card, 0), 
+        Players: []*Player{InitPlayer(0), InitPlayer(1)}, 
+        Defender: 1, 
+        PickingUp: false}
     game.Trump = game.Deck[0]
     game.DealAll()
     return &game

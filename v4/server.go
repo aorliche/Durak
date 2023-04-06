@@ -74,7 +74,12 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     }
     jsn,_ := json.Marshal(act)
     fmt.Printf("%s\n", jsn)
-    err := game.TakeAction(&act) 
+    gameUpd,err := game.TakeAction(&act) 
+    if gameUpd != nil {
+        jsn,_ = json.Marshal(gameUpd)
+        fmt.Fprintf(w, "%s\n", jsn)
+        return
+    }
     update := ActionResponse{
         Success: err == nil, 
         Actions: game.PlayerActions(game.Players[act.PlayerIdx]),

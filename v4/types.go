@@ -16,6 +16,7 @@ type Game struct {
     Trump *Card
     Defender int
     Turn int
+    PickingUp bool
 }
 
 type ActionResponse struct {
