@@ -1,8 +1,15 @@
 package main
 
 import (
+    "math/rand"
     "reflect"
 )
+
+// Shuffle array
+func Shuffle[T any](slice []T) []T {
+    rand.Shuffle(len(slice), func(i, j int) { slice[i], slice[j] = slice[j], slice[i] })
+    return slice
+}
 
 // Count number meeting condition
 func Count[T any](slice []T, fn func (T) bool) int {

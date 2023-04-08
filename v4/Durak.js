@@ -191,7 +191,7 @@ class Game {
             p.draw(ctx);
         });
         this.board.draw(ctx);
-        if (this.winner) {
+        if (this.winner !== null) {
             drawText(ctx, `Player ${this.winner} wins!`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
         }
         if (this.dragging) {
@@ -347,7 +347,7 @@ class Game {
         //let taken = false;
         const [card, area, player] = this.over(e);
         const actions = this.dragging.player.actions;
-        if (game.pending || game.winner) {
+        if (game.pending || game.winner !== null) {
             // ... Do nothing
             // Wait for response for last action
         } else if (card && area == 'board') {
@@ -405,8 +405,9 @@ class Game {
         this.players[1].actions = json.Actions[1].map(a => new Action(a));
         this.players[0].updateButtons();
         this.players[1].updateButtons();
-        if (json.Winner && parseInt(json.Winner) != -1) {
+        if (parseInt(json.Winner) != -1) {
             this.winner = parseInt(json.Winner);
+            this.stopPoll();
         }
         this.players[0].setHovering(i);
     }

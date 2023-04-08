@@ -3,7 +3,7 @@ package main
 import (
     //"encoding/json"
     "fmt"
-    "math/rand"
+    //"math/rand"
     "reflect"
     "strings"
     T "gorgonia.org/tensor"
@@ -130,7 +130,10 @@ func (game *Game) DefenderActions() []*Action {
             }
         }
     }
-    for _,bp := range game.Board.Plays {
+    for i,bp := range game.Board.Plays {
+        if game.Board.Covers[i] != nil {
+            continue
+        }
         for _,pc := range p.Hand {
             if pc.Beats(bp, game.Trump.Suit) {
                 act := Action{PlayerIdx: p.Idx, Verb: "Defend", Card: pc, Cover: bp}
@@ -260,7 +263,7 @@ func InitDeck() []*Card {
             cards = append(cards, &Card{Rank: r, Suit: s})
         }
     }
-    rand.Shuffle(len(cards), func(i, j int) { cards[i], cards[j] = cards[j], cards[i] })
+    Shuffle(cards)
     return cards
 }
 
@@ -304,6 +307,7 @@ func (game *Game) ToStr() string {
 }
 
 func InitGame() *Game {
+    StopRandom()
     game := Game{
         Deck: InitDeck(), 
         Board: InitBoard(), 
@@ -316,6 +320,7 @@ func InitGame() *Game {
         Versus: "Computer"}
     game.Trump = game.Deck[0]
     game.DealAll()
+    StartRandom()
     return &game
 }
 
