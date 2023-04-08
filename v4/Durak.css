@@ -1,20 +1,19 @@
 #durak-canvas {
     border: 1px solid black;
 }
-#top, #bottom {
+#top, #middle, #bottom {
     position: relative;
     font-size: 18px;
     width: 120px;
     height: 0px;
+    left: 10px;
 }
 #top {
     top: 10px;
-    left: 10px;
+}
+#middle {
+    top: 240px;
 }
 #bottom {
     top: -40px;
-    left: 10px;
-}
-#newgame {
-    margin-top: 200px;
 }

@@ -29,13 +29,20 @@ func GetPlayerIdx(w http.ResponseWriter, req *http.Request) int {
 
 func NewGame(w http.ResponseWriter, req *http.Request) {
     game = InitGame()
+    Update(w, req)
+}
+
+func Update(w http.ResponseWriter, req *http.Request) {
+    game.mutex.Lock()
     actions := make([][]*Action, 0)
     for _,p := range game.Players {
         actions = append(actions, game.PlayerActions(p))
     }
-    upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.Players, Actions: actions}
+    upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(1), Actions: actions, Winner: game.CheckWinner()}
+    game.RecordUpdate(&upd, true)
     jsn,_ := json.Marshal(upd)
     fmt.Fprintf(w, "%s\n", jsn)
+    game.mutex.Unlock()
 }
 
 /*func GetHand(w http.ResponseWriter, req *http.Request) {
@@ -51,25 +58,33 @@ func NewGame(w http.ResponseWriter, req *http.Request) {
 }*/
 
 func GetActions(w http.ResponseWriter, req *http.Request) {
+    game.mutex.Lock()
     if BadGame(w, req) {
+        game.mutex.Unlock()
         return
     }
     idx := GetPlayerIdx(w, req)
     if idx == -1 {
+        game.mutex.Unlock()
         return 
     }
     a := game.PlayerActions(game.Players[idx])
+    game.RecordPossibleActions(idx, a)
     jsn,_ := json.Marshal(a)
     fmt.Fprintf(w, "%s\n", jsn)
+    game.mutex.Unlock()
 }
 
 func TakeAction(w http.ResponseWriter, req *http.Request) {
+    game.mutex.Lock()
     if BadGame(w, req) {
+        game.mutex.Unlock()
         return
     }
     var act Action
     json.NewDecoder(req.Body).Decode(&act)
     if act.Verb == "" {
+        game.mutex.Unlock()
         return
     }
     jsn,_ := json.Marshal(act)
@@ -77,15 +92,21 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     gameUpd,err := game.TakeAction(&act) 
     if gameUpd != nil {
         jsn,_ = json.Marshal(gameUpd)
+        game.RecordAction(&act)
+        game.RecordUpdate(gameUpd, false)
         fmt.Fprintf(w, "%s\n", jsn)
+        game.mutex.Unlock()
         return
     }
     update := ActionResponse{
         Success: err == nil, 
         Actions: game.PlayerActions(game.Players[act.PlayerIdx]),
     }
+    game.RecordAction(&act)
+    game.RecordPossibleActions(act.PlayerIdx, update.Actions)
     jsn,_ = json.Marshal(update)
     fmt.Fprintf(w, "%s\n", jsn)
+    game.mutex.Unlock()
 }
 
 type HFunc func (http.ResponseWriter, *http.Request)
@@ -102,6 +123,7 @@ func Headers(fn HFunc) HFunc {
 
 func main() {
     http.HandleFunc("/game", Headers(NewGame))
+    http.HandleFunc("/update", Headers(Update))
     http.HandleFunc("/actions", Headers(GetActions))
     http.HandleFunc("/action", Headers(TakeAction))
     http.ListenAndServe("0.0.0.0:8080", nil)

@@ -10,6 +10,26 @@ const Ranks = ['6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
 
 const scale = 0.45;
 
+function drawText(ctx, text, p, color, font, stroke) {
+    ctx.save();
+    if (font) ctx.font = font;
+    const tm = ctx.measureText(text);
+    ctx.fillStyle = color;
+    if (p.ljust)
+        ctx.fillText(text, p.x, p.y);
+    else if (p.rjust)
+        ctx.fillText(text, p.x-tm.width, p.y);
+    else
+        ctx.fillText(text, p.x-tm.width/2, p.y);
+    if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.strokeText(text, p.x-tm.width/2, p.y);
+    }
+    ctx.restore();
+    return tm;
+}
+
 function getCoords(e) {
     const box = e.target.getBoundingClientRect();
     return [e.clientX - box.left, e.clientY - box.top];
@@ -28,8 +48,11 @@ function rank(i) {
 }
 
 function cardIndexFromObj(obj) {
-    const ri = Ranks.indexOf(obj.Rank)
-    const si = Suits.indexOf(obj.Suit)
+    const ri = Ranks.indexOf(obj.Rank);
+    const si = Suits.indexOf(obj.Suit);
+    if (ri == -1) {
+        return -1;
+    }
     return si*ranks.length + ri;
 }
 	
@@ -76,16 +99,16 @@ class Board {
 
     draw(ctx) {
         this.layout();
-        this.plays.forEach(c => c.draw(ctx, true)); 
-        this.covers.forEach(c => c ? c.draw(ctx, true) : null); 
+        this.plays.forEach(c => c.draw(ctx)); 
+        this.covers.forEach(c => c ? c.draw(ctx) : null); 
     }
 
     init(obj) {
         this.plays = obj.Plays.map(c => {
-            new Card(cardIndexFromObj(c));
+            return new Card(cardIndexFromObj(c));
         });
         this.covers = obj.Covers.map(c => {
-            new Card(cardIndexFromObj(c));
+            return c == null ? null : new Card(cardIndexFromObj(c));
         });
     }
 
@@ -130,15 +153,26 @@ class Game {
         .catch(err => console.log(err));
         this.dragging = null;
         this.pending = false;
+        this.winner = null;
+        this.versus = "computer";
         this.initButtons();
+        if (this.versus == "computer") {
+            this.startPoll();
+            $('#top').style.display = 'none';
+        } else {
+            $('#top').style.display = 'block';
+        }
     }
 
     down(e) {
         const [card, area, player] = this.over(e);
         if (card && area == 'hand') {
+            if (this.versus != "self" && player != this.players[0]) {
+                return;
+            }
             card.dragging = true;
             this.dragging = card;
-            player.hand.splice(player.hand.indexOf(card), 1);
+            //player.hand.splice(player.hand.indexOf(card), 1);
             this.dragging.offset = sub(getCoords(e), [card.x, card.y]);
             this.dragging.theta = 0;
             this.dragging.player = player;
@@ -150,15 +184,16 @@ class Game {
         this.layout();
         if (this.trump) this.trump.draw(ctx, true);
         if (this.deck) {
-            this.deck.draw(ctx, false);
-            ctx.font = 'bold 48px sans';
-            ctx.fillStyle = 'red';
-            ctx.fillText(this.decksize,670,60);
+            this.deck.draw(ctx);
+            drawText(ctx, `${this.decksize}`, {x: 700, y: 60}, 'red', 'bold 48px sans', 'navy');
         }
         this.players.forEach(p => {
             p.draw(ctx);
         });
         this.board.draw(ctx);
+        if (this.winner) {
+            drawText(ctx, `Player ${this.winner} wins!`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
+        }
         if (this.dragging) {
             this.dragging.draw(ctx, true);
         }
@@ -172,19 +207,18 @@ class Game {
         });
         const [card, area, player] = this.over(e);
         if (card && area == 'hand') {
+            if (this.versus != "self" && player != this.players[0]) {
+                return;
+            }
             card.hovering = true;
+            this.lastHover = e;
         }
     }
     
     init(json) {
-        this.deck = new Card(0);
+        this.deck = new Card(-1);
         this.trump = new Card(cardIndexFromObj(json.Trump));
         this.update(json);
-        /*this.board.init(json.Board);
-        this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
-        this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
-        this.players[0].actions = json.Actions[0].map(a => new Action(a));
-        this.players[1].actions = json.Actions[1].map(a => new Action(a));*/
     }
 
     initButtons() {
@@ -203,7 +237,6 @@ class Game {
 
             passb.addEventListener('click', e => {
                 e.preventDefault();
-                console.log('passed');
                 try {
                     e.target.player.actions.forEach(act => {
                         if (act.verb == 'Pass') {
@@ -216,7 +249,6 @@ class Game {
 
             pickupb.addEventListener('click', e => {
                 e.preventDefault();
-                console.log('pickup');
                 try {
                     e.target.player.actions.forEach(act => {
                         if (act.verb == 'Pickup') {
@@ -249,6 +281,7 @@ class Game {
             const coords = sub(getCoords(e), this.dragging.offset);
             this.dragging.x = coords[0];
             this.dragging.y = coords[1];
+            this.lastHover = e;
         }
     }
 
@@ -279,9 +312,28 @@ class Game {
         return [card, area, player];
     }
 
+    startPoll() {
+        this.poll = setInterval(() => {
+            fetch('http://10.100.205.6:8080/update')
+            .then(resp => resp.json())
+            .then(json => {
+                console.log(json);
+                this.update(json)
+            })
+            .catch(err => console.log(err));
+        }, 500);
+    }
+
+    stopPoll() {
+        if (this.poll) {
+            clearInterval(this.poll);
+            this.poll = null;
+        }
+    }
+
     out(e) {
         if (this.dragging) {
-            this.dragging.player.hand.push(this.dragging);
+            //this.dragging.player.hand.push(this.dragging);
             this.dragging.dragging = false;
             this.dragging.hovering = false;
             this.dragging = null;
@@ -292,10 +344,11 @@ class Game {
         if (!this.dragging) {
             return;
         }
-        let taken = false;
+        //let taken = false;
         const [card, area, player] = this.over(e);
         const actions = this.dragging.player.actions;
-        if (game.pending) {
+        if (game.pending || game.winner) {
+            // ... Do nothing
             // Wait for response for last action
         } else if (card && area == 'board') {
             // this.over checks whether covers is empty
@@ -304,7 +357,7 @@ class Game {
                 if (cur.verb == 'Defend' && cur.card.i == this.dragging.i && cur.cover.i == card.i) {
                     const i = this.board.plays.indexOf(card);
                     this.board.covers[i] = this.dragging;
-                    taken = true;
+                    //taken = true;
                     cur.take();
                     break;
                 }
@@ -315,15 +368,21 @@ class Game {
                 if (cur.verb == 'Attack' && cur.card.i == this.dragging.i) {
                     this.board.plays.push(this.dragging);
                     this.board.covers.push(null);
-                    taken = true;
+                    //taken = true;
+                    cur.take();
+                    break;
+                } else if (cur.verb == 'Reverse' && cur.card.i == this.dragging.i) {
+                    this.board.plays.push(this.dragging);
+                    this.board.covers.push(null);
+                    //taken = true;
                     cur.take();
                     break;
                 }
             }
         }
-        if (!taken) {
+        /*if (!taken) {
             this.dragging.player.hand.push(this.dragging);
-        }
+        }*/
         this.dragging.dragging = false;
         this.dragging.hovering = false;
         this.dragging = null;
@@ -339,10 +398,17 @@ class Game {
             this.trump = null;
         }
         this.board.init(json.Board);
+        const i = this.players[0].getHovering();
         this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
         this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
         this.players[0].actions = json.Actions[0].map(a => new Action(a));
         this.players[1].actions = json.Actions[1].map(a => new Action(a));
+        this.players[0].updateButtons();
+        this.players[1].updateButtons();
+        if (json.Winner && parseInt(json.Winner) != -1) {
+            this.winner = parseInt(json.Winner);
+        }
+        this.players[0].setHovering(i);
     }
 }
 
@@ -358,7 +424,8 @@ class Action {
         this.cover = obj.Cover ? new Card(cardIndexFromObj(obj.Cover)) : null;
     }
 
-    rollback() {
+    // TODO implement Defend and Reverse
+    /*rollback() {
         switch (this.verb) {
             case "Attack": {
                 game.players[this.pidx].hand.push(this.card);
@@ -366,7 +433,7 @@ class Action {
                 break;
             }
         }
-    }
+    }*/
 
     take() {
         game.pending = true;
@@ -382,7 +449,11 @@ class Action {
             console.log(this.orig.PlayerIdx);
             console.log(json);
             game.pending = false;
-            if (this.verb == 'Pass') {
+            /*if (json.Winner && parseInt(json.Winner) != -1) {
+                console.log(`winner ${json.Winner}`);
+                game.winner = parseInt(json.Winner);
+                return;
+            } else if (this.verb == 'Pass') {
                 game.update(json);
                 game.players[0].updateButtons();
                 game.players[1].updateButtons();
@@ -395,15 +466,15 @@ class Action {
             }
             game.players[this.orig.PlayerIdx].actions = json.Actions.map(act => new Action(act));
             game.players[this.orig.PlayerIdx].updateButtons();
+            */
         })
         .catch(err => console.log(err));
     }
 }
 
 class Player {
-    constructor(n, show) {
+    constructor(n) {
         this.n = n;
-        this.show = show;
         this.hand = [];
         this.actions = [];
     }
@@ -411,11 +482,32 @@ class Player {
     draw(ctx) {
         this.layout();
         this.hand.forEach(c => {
-            c.draw(ctx, this.show);
+            for (let i=0; i<game.board.plays.length; i++) {
+                const c1 = game.board.plays[i];
+                const c2 = game.board.covers[i];
+                if (c.i == c1.i || (c2 && c2.i == c.i)) {
+                    console.log('skipped');
+                    return;
+                }
+            }
+            if (game.dragging && game.dragging.i == c.i) {
+                return;
+            }
+            c.draw(ctx);
         });
     }
 
-    fetchActions() {
+    getHovering() {
+        let i = -1;
+        this.hand.forEach(c => {
+            if (c.hovering) {
+                i = c.i;
+            }
+        });
+        return i;
+    }
+
+    /*fetchActions() {
         fetch(`http://10.100.205.6:8080/actions?p=${this.n}`)
         .then(resp => resp.json())
         .then(json => {
@@ -423,7 +515,7 @@ class Player {
             this.updateButtons();
         })
         .catch(err => console.log(err));
-    }
+    }*/
 
     layout() {
         const n = this.hand.length;
@@ -431,12 +523,24 @@ class Player {
         const cy = this.n == 0 ? 500 : 0;
         const tmult = this.n == 0 ? 1 : -1;
         for (let i=0; i<n; i++) {
+            if (this.hand[i].dragging) {
+                continue;
+            }
             const px = cx+(i-(n-1)/2)*40;
             const theta = (i-(n-1)/2)*0.1;
             this.hand[i].x = px;
             this.hand[i].y = cy;
             this.hand[i].theta = theta*tmult;
         }
+    }
+
+    setHovering(i) {
+        this.layout();
+        this.hand.forEach(c => {
+            if (c.i == i && c.contains(game.lastHover)) {
+                c.hovering = true;
+            }
+        });
     }
 
     updateButtons() {
@@ -474,19 +578,15 @@ class Card {
         return inside;
     }
 
-    draw(ctx, show) {
-        let img;
-        switch (show) {
-            case true: img = cardImages[this.i]; break;
-            case false: img = cardBackImage; break;
-        }
+    draw(ctx) {
+        const img = this.i == -1 ? cardBackImage : cardImages[this.i];
         this.xform((x,y,w,h,m) => {
             ctx.drawImage(img,0,0,w,h);
         });
     }
 
     xform(cb) {
-        const img = cardImages[this.i];
+        const img = cardBackImage;
         const w = scale*img.naturalWidth;
         const h = scale*img.naturalHeight;
         const hovoff = this.y < 250 ? 20 : -20;

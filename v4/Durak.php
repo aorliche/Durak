@@ -10,6 +10,8 @@
     <div id='top'>
         <button id='p1pass'>Pass</button>
         <button id='p1pickup'>Pickup</button>
+    </div>
+    <div id='middle'>
         <button id='newgame'>New Game</button>
     </div>
 	<canvas id='durak-canvas' width='800' height='500'></canvas>

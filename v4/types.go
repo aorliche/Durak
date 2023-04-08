@@ -2,6 +2,7 @@ package main
 
 import (
     T "gorgonia.org/tensor"
+    "sync"
 )
 
 type AI struct {
@@ -17,6 +18,16 @@ type Game struct {
     Defender int
     Turn int
     PickingUp bool
+    Recording []*Record
+    Versus string
+    mutex sync.Mutex
+}
+
+type Record struct {
+    Action *Action
+    Actions [][]*Action
+    // On hand boundaries
+    Update *GameUpdate
 }
 
 type ActionResponse struct {
@@ -24,10 +35,10 @@ type ActionResponse struct {
     Actions []*Action
 }
 
-type ActionsUpdate struct {
+/*type ActionsUpdate struct {
     PlayerIdx int
     Actions []*Action
-}
+}*/
 
 type GameUpdate struct {
     Board *Board
@@ -35,6 +46,7 @@ type GameUpdate struct {
     Trump *Card
     Players []*Player
     Actions [][]*Action
+    Winner int
 }
 
 type Board struct {

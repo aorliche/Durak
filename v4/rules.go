@@ -72,6 +72,19 @@ func (game *Game) PlayerActions(p *Player) []*Action {
     }
 }
 
+func (game *Game) MaskedPlayers(pIdx int) []*Player {
+    po := game.Players[pIdx]
+    hand := make([]*Card, len(po.Hand))
+    for i := 0; i < len(hand); i++ {
+        hand[i] = &Card{Rank: "Unkown", Suit: "Unknown"}
+    }
+    p := Player{Name: po.Name, Idx: pIdx, Hand: hand}
+    players := make([]*Player, 2)
+    players[1-pIdx] = game.Players[1-pIdx]
+    players[pIdx] = &p
+    return players
+}
+
 func (board *Board) Covered() int {
     return Count(board.Covers, func (c *Card) bool {return c != nil})
 }
@@ -95,7 +108,7 @@ func (game *Game) AttackerActions() []*Action {
             }
         }
     }
-    if game.PickingUp || game.Board.Covered() == len(game.Board.Plays) {
+    if game.PickingUp || (game.Board.Covered() == len(game.Board.Plays) && len(game.Board.Plays) > 0) {
         act := Action{PlayerIdx: p.Idx, Verb: "Pass"}
         res = append(res, &act)
     }
@@ -108,6 +121,15 @@ func (game *Game) DefenderActions() []*Action {
         return res
     }
     p := game.GetDefender()
+    revRank := game.ReverseRank()
+    if revRank != "" {
+        for _,pc := range p.Hand {
+            if pc.Rank == revRank {
+                act := Action{PlayerIdx: p.Idx, Verb: "Reverse", Card: pc}
+                res = append(res, &act)
+            }
+        }
+    }
     for _,bp := range game.Board.Plays {
         for _,pc := range p.Hand {
             if pc.Beats(bp, game.Trump.Suit) {
@@ -122,6 +144,19 @@ func (game *Game) DefenderActions() []*Action {
         res = append(res, &act)
     }
     return res
+}
+
+func (game *Game) ReverseRank() string {
+    if len(game.Board.Plays) == 0 {
+        return ""
+    }
+    r := game.Board.Plays[0].Rank
+    for _,c := range Cat(game.Board.Plays, NotNil(game.Board.Covers)) {
+        if c.Rank != r {
+            return ""
+        }
+    }
+    return r
 }
 
 func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
@@ -157,6 +192,12 @@ func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
             p.Board.Covers = make([]*Card,0)*/
             game.PickingUp = true
         }
+        case "Reverse": {
+            p.Hand = Remove(p.Hand, act.Card)
+            game.Board.Plays = append(game.Board.Plays, act.Card)
+            game.Board.Covers = append(game.Board.Covers, nil)
+            game.Defender = 1-game.Defender
+        }
         case "Pass": {
             if game.Board.Covered() < len(game.Board.Plays) {
                 game.GetDefender().Hand = append(game.GetDefender().Hand, 
@@ -179,12 +220,28 @@ func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
                 Board: game.Board, 
                 Deck: len(game.Deck), 
                 Trump: game.Trump, 
-                Players: game.Players, 
+                Players: game.MaskedPlayers(1), 
                 Actions: actions,
+                Winner: -1,
             }, nil
         }
     }
+    winner := game.CheckWinner()
+    if winner != -1 {
+        return &GameUpdate{
+            Winner: winner,
+        },nil
+    }
     return nil,nil
+}
+
+func (game *Game) CheckWinner() int {
+    for i,p := range game.Players {
+        if len(p.Hand) == 0 && len(game.Deck) == 0 {
+            return i
+        }
+    }
+    return -1
 }
 
 func (act *Action) ToTensor(game *Game) T.Tensor {
@@ -254,7 +311,9 @@ func InitGame() *Game {
         Discard: make([]*Card, 0), 
         Players: []*Player{InitPlayer(0), InitPlayer(1)}, 
         Defender: 1, 
-        PickingUp: false}
+        PickingUp: false,
+        Recording: make([]*Record, 0),
+        Versus: "Computer"}
     game.Trump = game.Deck[0]
     game.DealAll()
     return &game
