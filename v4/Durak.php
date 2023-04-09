@@ -12,7 +12,8 @@
         <button id='p1pickup'>Pickup</button>
     </div>
     <div id='middle'>
-        <button id='newgame'>New Game</button>
+        <button id='new'>New Game</button>
+        <button id='join'>Join Game</button>
     </div>
 	<canvas id='durak-canvas' width='800' height='500'></canvas>
     <div id='bottom'>

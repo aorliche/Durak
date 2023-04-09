@@ -219,6 +219,7 @@ func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
                 actions = append(actions, game.PlayerActions(p))
             }
             game.PickingUp = false
+            // Not used anymore
             return &GameUpdate{
                 Board: game.Board, 
                 Deck: len(game.Deck), 
@@ -307,7 +308,7 @@ func (game *Game) ToStr() string {
 }
 
 func InitGame() *Game {
-    StopRandom()
+    //StopRandom()
     game := Game{
         Deck: InitDeck(), 
         Board: InitBoard(), 
@@ -320,7 +321,7 @@ func InitGame() *Game {
         Versus: "Computer"}
     game.Trump = game.Deck[0]
     game.DealAll()
-    StartRandom()
+    //StartRandom()
     return &game
 }
 

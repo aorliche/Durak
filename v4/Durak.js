@@ -70,7 +70,7 @@ function loadImages(cb) {
     
     function onLoadFn() {
         numImagesLoaded++;	
-		if (loadingComplete()) cb();
+		if (loadingComplete() && cb) cb();
     }
     
     for (let i=0; i<36; i++) {
@@ -87,8 +87,8 @@ function loadImages(cb) {
 
 let game;
 
-function newGame() {
-    game = new Game();
+function newGame(join) {
+    game = new Game(join);
 }
 
 class Board {
@@ -141,10 +141,13 @@ class Board {
 }
 
 class Game {
-    constructor() {
+    constructor(join) {
+        // You are always player 0 in the client
+        // Must remap if necessary when talking to the server
+        this.join = join;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch('http://10.100.205.6:8080/game')
+        fetch(this.join ? 'http://10.100.205.6:8080/join' : 'http://10.100.205.6:8080/game')
         .then(resp => resp.json())
         .then(json => {
             console.log(json);
@@ -313,8 +316,9 @@ class Game {
     }
 
     startPoll() {
+        const p = this.join ? 1 : 0;
         this.poll = setInterval(() => {
-            fetch('http://10.100.205.6:8080/update')
+            fetch(`http://10.100.205.6:8080/update?p=${p}`)
             .then(resp => resp.json())
             .then(json => {
                 console.log(json);
@@ -398,15 +402,19 @@ class Game {
             this.trump = null;
         }
         this.board.init(json.Board);
+        const [p0, p1] = this.join ? [1, 0] : [0, 1];
         const i = this.players[0].getHovering();
-        this.players[0].hand = json.Players[0].Hand.map(c => new Card(cardIndexFromObj(c)));
-        this.players[1].hand = json.Players[1].Hand.map(c => new Card(cardIndexFromObj(c)));
-        this.players[0].actions = json.Actions[0].map(a => new Action(a));
-        this.players[1].actions = json.Actions[1].map(a => new Action(a));
+        this.players[0].hand = json.Players[p0].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[1].hand = json.Players[p1].Hand.map(c => new Card(cardIndexFromObj(c)));
+        this.players[0].actions = json.Actions[p0].map(a => new Action(a));
+        this.players[1].actions = json.Actions[p1].map(a => new Action(a));
         this.players[0].updateButtons();
         this.players[1].updateButtons();
         if (parseInt(json.Winner) != -1) {
             this.winner = parseInt(json.Winner);
+            if (this.join) {
+                this.winner = 1-this.winner;
+            }
             this.stopPoll();
         }
         this.players[0].setHovering(i);
@@ -416,7 +424,7 @@ class Game {
 class Action {
     constructor(obj) {
         this.orig = obj;
-        this.pidx = obj.PlayerIdx;
+        this.pidx = game.join ? 1-obj.PlayerIdx : obj.PlayerIdx;
         this.verb = obj.Verb;
         this.card = null;
         if (["Attack", "Defend", "Reverse"].includes(obj.Verb)) {
@@ -447,7 +455,7 @@ class Action {
         })
         .then(resp => resp.json())
         .then(json => {
-            console.log(this.orig.PlayerIdx);
+            console.log(this.orig.PlayerIdx, this.pidx);
             console.log(json);
             game.pending = false;
             /*if (json.Winner && parseInt(json.Winner) != -1) {
@@ -605,7 +613,16 @@ class Card {
 }
 
 window.addEventListener('load', e => {
-    loadImages(newGame);
+    //loadImages(newGame);
+    loadImages();
+
+    $('#new').addEventListener('click', e => {
+        newGame();
+    });
+
+    $('#join').addEventListener('click', e => {
+        newGame(true);
+    });
 
     canvas = $('#durak-canvas');
     ctx = canvas.getContext('2d');
