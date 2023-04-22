@@ -8,37 +8,67 @@ import (
     "strconv"
 )
 
-var game *Game
+var games = make(map[int]*Game)
 
-func BadGame(w http.ResponseWriter, req *http.Request) bool {
-    if game == nil {
-        fmt.Fprintf(w, "No active game\n")
-        return true
+func NextGameIdx() int {
+    max := -1
+    for key := range games {
+        if key > max {
+            max = key
+        }
     }
-    return false
+    return max
 }
 
-/*func GetPlayerIdx(w http.ResponseWriter, req *http.Request) int {
-    idx, err := strconv.Atoi(req.URL.Query().Get("p"))
-    if err != nil || idx < 0 || idx >= len(game.Players) {
-        fmt.Fprintf(w, "No such player %v\n", idx)
-        return -1
+func JsonErr(s string) string {
+    jsn, _ := json.Marshal(s)
+    return string(jsn)
+}
+
+func GetGame(w http.ResponseWriter, req *http.Request) *Game {
+    key, err := strconv.Atoi(req.URL.Query().Get("game"))
+    fmt.Println(key)
+    if err != nil {
+        fmt.Fprintf(w, "%s\n", JsonErr("No such game A"))
+        return nil
     }
-    return idx
-}*/
+    game, ok := games[key]
+    fmt.Println(game)
+    if !ok {
+        fmt.Fprintf(w, "%s\n", JsonErr("No such game B"))
+        return nil
+    }
+    return game
+}
+
+func List(w http.ResponseWriter, req *http.Request) {
+    keys := make([]int, len(games))
+    for key := range games {
+        keys = append(keys, key) 
+    }
+    jsn, _ := json.Marshal(keys)
+    fmt.Fprintf(w, "%s\n", jsn)
+}
 
 func Join(w http.ResponseWriter, req *http.Request) {
-    req.URL.RawQuery = "p=1"
-    Update(w, req)
+    game := GetGame(w, req)
+    if game == nil { 
+        return
+    }
+    Info(w, req)
 }
 
-func NewGame(w http.ResponseWriter, req *http.Request) {
-    game = InitGame()
-    Update(w, req)
+func New(w http.ResponseWriter, req *http.Request) {
+    game := InitGame(NextGameIdx())
+    fmt.Println(game.Key)
+    games[game.Key] = game
+    req.URL.RawQuery = fmt.Sprintf("p=0&game=%d", game.Key)
+    Info(w, req)
 }
 
-func Update(w http.ResponseWriter, req *http.Request) {
-    if BadGame(w, req) {
+func Info(w http.ResponseWriter, req *http.Request) {
+    game := GetGame(w, req)
+    if game == nil {
         return
     }
     game.mutex.Lock()
@@ -46,17 +76,13 @@ func Update(w http.ResponseWriter, req *http.Request) {
     for _,p := range game.Players {
         actions = append(actions, game.PlayerActions(p))
     }
-    p := req.URL.Query().Get("p")
-    mp := 1
-    if p != "" {
-       val, err := strconv.Atoi(p)  
-        if err != nil {
-            fmt.Println("Bad player query", err)
-            game.mutex.Unlock()
-            return
-        }
-       mp = 1-val
+    p, err := strconv.Atoi(req.URL.Query().Get("p"))
+    if err != nil || p < 0 || p > 1 {
+        fmt.Fprintf(w, "%s\n", JsonErr("Bad player"))
+        game.mutex.Unlock()
+        return
     }
+    mp := 1-p
     upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(mp), Actions: actions, Winner: game.CheckWinner()}
     game.RecordUpdate(&upd, true)
     jsn,_ := json.Marshal(upd)
@@ -64,42 +90,12 @@ func Update(w http.ResponseWriter, req *http.Request) {
     game.mutex.Unlock()
 }
 
-/*func GetHand(w http.ResponseWriter, req *http.Request) {
-    if BadGame(w, req) {
-        return
-    }
-    idx := GetPlayerIdx(w, req)
-    if idx == -1 {
-        return 
-    }
-    jsn,_ := json.Marshal(game.Players[idx].Hand)
-    fmt.Fprintf(w, "%s\n", jsn)
-}*/
-
-/*func GetActions(w http.ResponseWriter, req *http.Request) {
-    game.mutex.Lock()
-    if BadGame(w, req) {
-        game.mutex.Unlock()
-        return
-    }
-    idx := GetPlayerIdx(w, req)
-    if idx == -1 {
-        game.mutex.Unlock()
-        return 
-    }
-    a := game.PlayerActions(game.Players[idx])
-    game.RecordPossibleActions(idx, a)
-    jsn,_ := json.Marshal(a)
-    fmt.Fprintf(w, "%s\n", jsn)
-    game.mutex.Unlock()
-}*/
-
 func TakeAction(w http.ResponseWriter, req *http.Request) {
-    game.mutex.Lock()
-    if BadGame(w, req) {
-        game.mutex.Unlock()
+    game := GetGame(w, req)
+    if game == nil {
         return
     }
+    game.mutex.Lock()
     var act Action
     json.NewDecoder(req.Body).Decode(&act)
     if act.Verb == "" {
@@ -110,22 +106,12 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     fmt.Printf("%s\n", jsn)
     gameUpd,err := game.TakeAction(&act) 
     if gameUpd != nil {
-        //jsn,_ = json.Marshal(gameUpd)
         game.RecordAction(&act)
         game.RecordUpdate(gameUpd, false)
-        //fmt.Fprintf(w, "%s\n", jsn)
-        //game.mutex.Unlock()
-        //return
     } else {
         actions := game.PlayerActions(game.Players[act.PlayerIdx])
-        /*update := ActionResponse{
-            Success: err == nil, 
-            Actions: actions,
-        }*/
         game.RecordAction(&act)
         game.RecordPossibleActions(act.PlayerIdx, actions)
-        /*jsn,_ = json.Marshal(update)
-        fmt.Fprintf(w, "%s\n", jsn)*/
     }
     jsn,_ = json.Marshal(err == nil)
     fmt.Fprintf(w, "%s\n", jsn)
@@ -145,10 +131,10 @@ func Headers(fn HFunc) HFunc {
 }
 
 func main() {
-    http.HandleFunc("/game", Headers(NewGame))
+    http.HandleFunc("/list", Headers(List))
+    http.HandleFunc("/new", Headers(New))
     http.HandleFunc("/join", Headers(Join))
-    http.HandleFunc("/update", Headers(Update))
-    //http.HandleFunc("/actions", Headers(GetActions))
+    http.HandleFunc("/info", Headers(Info))
     http.HandleFunc("/action", Headers(TakeAction))
     http.ListenAndServe("0.0.0.0:8080", nil)
 }

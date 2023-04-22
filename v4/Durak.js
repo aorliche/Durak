@@ -87,8 +87,11 @@ function loadImages(cb) {
 
 let game;
 
-function newGame(join) {
-    game = new Game(join);
+function newGame(id, computer) {
+    if (game) {
+        return;
+    }
+    game = new Game(id, computer);
 }
 
 class Board {
@@ -147,7 +150,7 @@ class Game {
         this.join = join;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? 'http://10.100.205.6:8080/join' : 'http://10.100.205.6:8080/game')
+        fetch(this.join ? 'http://10.100.205.6:8080/join?game=0&p=1' : 'http://10.100.205.6:8080/new')
         .then(resp => resp.json())
         .then(json => {
             console.log(json);
@@ -318,7 +321,7 @@ class Game {
     startPoll() {
         const p = this.join ? 1 : 0;
         this.poll = setInterval(() => {
-            fetch(`http://10.100.205.6:8080/update?p=${p}`)
+            fetch(`http://10.100.205.6:8080/info?game=0&p=${p}`)
             .then(resp => resp.json())
             .then(json => {
                 console.log(json);
@@ -446,7 +449,7 @@ class Action {
 
     take() {
         game.pending = true;
-        fetch('http://10.100.205.6:8080/action', {
+        fetch('http://10.100.205.6:8080/action&game=0', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -613,15 +616,28 @@ class Card {
 }
 
 window.addEventListener('load', e => {
-    //loadImages(newGame);
     loadImages();
 
     $('#new').addEventListener('click', e => {
-        newGame();
+        newGame(-1);
     });
 
     $('#join').addEventListener('click', e => {
-        newGame(true);
+        const select = $('#durak-list select');
+        const opt = select.options[select.selectedIndex];
+        if (!opt) {
+            return;
+        }
+        const id = opt.value.split(/\s/)[1];
+        joinGame(parseInt(id));
+    });
+
+    $('#computer').addEventListener('click', e => {
+        newGame(-1, true);
+    });
+
+    $('#quit').addEventListener('click', e => {
+        console.log('Quit');
     });
 
     canvas = $('#durak-canvas');
@@ -653,13 +669,4 @@ window.addEventListener('load', e => {
             game.draw(ctx);
         }
     }, 100);
-
-    /*function anim(ts) {
-        if (game) {
-            game.draw(ctx);
-        }
-        setTimeout(requestAnimationFrame(anim), 100);
-    }
-
-    anim();*/
 });

@@ -1,15 +1,16 @@
 package main
 
 import (
-    T "gorgonia.org/tensor"
+    //T "gorgonia.org/tensor"
     "sync"
 )
 
-type AI struct {
+/*type AI struct {
     Weights map[string]*T.Tensor
-}
+}*/
 
 type Game struct {
+    Key int
     Players []*Player
     Board *Board
     Deck []*Card

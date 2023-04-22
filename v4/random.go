@@ -1,5 +1,5 @@
 package main
-
+/*
 import (
     "fmt"
     "time"
@@ -64,4 +64,4 @@ func RandomLoop() {
 
 func StopRandom() {
     running = false
-}
+}*/

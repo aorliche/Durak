@@ -17,3 +17,15 @@
 #bottom {
     top: -40px;
 }
+#durak {
+    display: flex;
+}
+#durak-list {
+    margin-left: 20px;
+    width: 180px;
+}
+#durak-list select {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 160px;
+}

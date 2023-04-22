@@ -6,7 +6,7 @@ import (
     //"math/rand"
     "reflect"
     "strings"
-    T "gorgonia.org/tensor"
+    //T "gorgonia.org/tensor"
 )
 
 var suits = []string{"Clubs", "Spades", "Hearts", "Diamonds"}
@@ -248,14 +248,14 @@ func (game *Game) CheckWinner() int {
     return -1
 }
 
-func (act *Action) ToTensor(game *Game) T.Tensor {
+/*func (act *Action) ToTensor(game *Game) T.Tensor {
     rankFeat := float64(IndexOf(ranks, act.Card.Rank))
     suitFeat := float64(Ternary(act.Card.Suit == game.Trump.Suit, 1, 0))
     boardSizeFeat := float64(game.BoardSize())
     handSizeFeat := float64(len(game.Players[act.PlayerIdx].Hand))
     back := []float64{rankFeat, suitFeat, boardSizeFeat, handSizeFeat}
     return T.New(T.WithShape(2), T.WithBacking(back))
-}
+}*/
 
 func InitDeck() []*Card {
     cards := make([]*Card, 0)
@@ -307,9 +307,10 @@ func (game *Game) ToStr() string {
     return strings.Join(str, "\n")
 }
 
-func InitGame() *Game {
+func InitGame(key int) *Game {
     //StopRandom()
     game := Game{
+        Key: key,
         Deck: InitDeck(), 
         Board: InitBoard(), 
         Turn: 0, 

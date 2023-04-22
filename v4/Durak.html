@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Durak</title>
+	<link rel="stylesheet" href="Durak.css">
+    <script src="Durak.js"></script>
+</head>
+<body>
+    <h1>Computer Durak</h1>
+    <div id='durak'>
+        <div id='durak-game'>
+            <canvas id='durak-canvas' width='800' height='500'></canvas>
+            <div id='bottom'>
+                <button id='pass'>Pass</button>
+                <button id='pickup'>Pickup</button>
+            </div>
+        </div>
+        <div id='durak-list'>
+            <div>
+                <label for='durak-list-select'>Open Games</label>
+            </div>
+            <select name='durak-list-select' multiple size='10'>
+                <option>Game 0</option>
+                <option>Game 2</option>
+            </select>
+            <div>
+                <button id='new'>New Game</button>
+                <button id='join'>Join Game</button>
+                <button id='computer'>Computer Game</button>
+                <button id='quit'>Quit</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
