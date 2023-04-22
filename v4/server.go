@@ -17,7 +17,7 @@ func NextGameIdx() int {
             max = key
         }
     }
-    return max
+    return max+1
 }
 
 func JsonErr(s string) string {
@@ -27,13 +27,11 @@ func JsonErr(s string) string {
 
 func GetGame(w http.ResponseWriter, req *http.Request) *Game {
     key, err := strconv.Atoi(req.URL.Query().Get("game"))
-    fmt.Println(key)
     if err != nil {
         fmt.Fprintf(w, "%s\n", JsonErr("No such game A"))
         return nil
     }
     game, ok := games[key]
-    fmt.Println(game)
     if !ok {
         fmt.Fprintf(w, "%s\n", JsonErr("No such game B"))
         return nil
@@ -60,7 +58,6 @@ func Join(w http.ResponseWriter, req *http.Request) {
 
 func New(w http.ResponseWriter, req *http.Request) {
     game := InitGame(NextGameIdx())
-    fmt.Println(game.Key)
     games[game.Key] = game
     req.URL.RawQuery = fmt.Sprintf("p=0&game=%d", game.Key)
     Info(w, req)
@@ -84,7 +81,7 @@ func Info(w http.ResponseWriter, req *http.Request) {
     }
     mp := 1-p
     upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(mp), Actions: actions, Winner: game.CheckWinner()}
-    game.RecordUpdate(&upd, true)
+    //game.RecordUpdate(&upd, true)
     jsn,_ := json.Marshal(upd)
     fmt.Fprintf(w, "%s\n", jsn)
     game.mutex.Unlock()
@@ -92,6 +89,7 @@ func Info(w http.ResponseWriter, req *http.Request) {
 
 func TakeAction(w http.ResponseWriter, req *http.Request) {
     game := GetGame(w, req)
+    fmt.Println(game)
     if game == nil {
         return
     }
@@ -122,6 +120,7 @@ type HFunc func (http.ResponseWriter, *http.Request)
 
 func Headers(fn HFunc) HFunc {
     return func (w http.ResponseWriter, req *http.Request) {
+        fmt.Println(req.Method)
         w.Header().Set("Access-Control-Allow-Origin", "*")
         w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
         w.Header().Set("Access-Control-Allow-Headers",

@@ -144,10 +144,11 @@ class Board {
 }
 
 class Game {
-    constructor(join) {
+    constructor(id, computer) {
         // You are always player 0 in the client
         // Must remap if necessary when talking to the server
-        this.join = join;
+        this.id = id;
+        this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
         fetch(this.join ? 'http://10.100.205.6:8080/join?game=0&p=1' : 'http://10.100.205.6:8080/new')
@@ -160,14 +161,9 @@ class Game {
         this.dragging = null;
         this.pending = false;
         this.winner = null;
-        this.versus = "computer";
+        this.computer = computer;
         this.initButtons();
-        if (this.versus == "computer") {
-            this.startPoll();
-            $('#top').style.display = 'none';
-        } else {
-            $('#top').style.display = 'block';
-        }
+        this.startPoll();
     }
 
     down(e) {
@@ -228,43 +224,35 @@ class Game {
     }
 
     initButtons() {
-        for (let i=0; i<2; i++) {
-            const passb = $(`#p${i}pass`);
-            const pickupb = $(`#p${i}pickup`);
+        this.passb = $('#pass');
+        this.pickupb = $('#pickup');
 
-            this.players[i].passb = passb;
-            this.players[i].pickupb = pickupb;
+        this.passb.disabled = true;
+        this.pickupb.disabled = true;
 
-            passb.disabled = true;
-            pickupb.disabled = true;
+        this.passb.addEventListener('click', e => {
+            e.preventDefault();
+            try {
+                this.players[0].actions.forEach(act => {
+                    if (act.verb == 'Pass') {
+                        act.take();
+                        throw 0;
+                    }
+                });
+            } catch {}
+        });
 
-            passb.player = this.players[i];
-            pickupb.player = this.players[i];
-
-            passb.addEventListener('click', e => {
-                e.preventDefault();
-                try {
-                    e.target.player.actions.forEach(act => {
-                        if (act.verb == 'Pass') {
-                            act.take();
-                            throw 0;
-                        }
-                    });
-                } catch {}
-            });
-
-            pickupb.addEventListener('click', e => {
-                e.preventDefault();
-                try {
-                    e.target.player.actions.forEach(act => {
-                        if (act.verb == 'Pickup') {
-                            act.take();
-                            throw 0;
-                        }
-                    });
-                } catch {}
-            });
-        }
+        this.pickupb.addEventListener('click', e => {
+            e.preventDefault();
+            try {
+                this.players[0].actions.forEach(act => {
+                    if (act.verb == 'Pickup') {
+                        act.take();
+                        throw 0;
+                    }
+                });
+            } catch {}
+        });
     }
 
     layout() {
@@ -411,8 +399,9 @@ class Game {
         this.players[1].hand = json.Players[p1].Hand.map(c => new Card(cardIndexFromObj(c)));
         this.players[0].actions = json.Actions[p0].map(a => new Action(a));
         this.players[1].actions = json.Actions[p1].map(a => new Action(a));
-        this.players[0].updateButtons();
-        this.players[1].updateButtons();
+        /*this.players[0].updateButtons();
+        this.players[1].updateButtons();*/
+        this.updateButtons();
         if (parseInt(json.Winner) != -1) {
             this.winner = parseInt(json.Winner);
             if (this.join) {
@@ -421,6 +410,20 @@ class Game {
             this.stopPoll();
         }
         this.players[0].setHovering(i);
+    }
+
+    updateButtons() {
+        let [pass, pickup] = [false, false];
+        this.players[0].actions.forEach(a => {
+            if (a.verb == 'Pass') {
+                pass = true;
+            }
+            if (a.verb == 'Pickup') {
+                pickup = true;
+            }
+        });
+        this.passb.disabled = !pass;
+        this.pickupb.disabled = !pickup;
     }
 }
 
@@ -449,10 +452,10 @@ class Action {
 
     take() {
         game.pending = true;
-        fetch('http://10.100.205.6:8080/action&game=0', {
+        fetch('http://10.100.205.6:8080/action?game=0', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify(this.orig)
         })
@@ -554,20 +557,6 @@ class Player {
             }
         });
     }
-
-    updateButtons() {
-        let [pass, pickup] = [false, false];
-        this.actions.forEach(a => {
-            if (a.verb == 'Pass') {
-                pass = true;
-            }
-            if (a.verb == 'Pickup') {
-                pickup = true;
-            }
-        });
-        this.passb.disabled = !pass;
-        this.pickupb.disabled = !pickup;
-    }
 }
 
 class Card {
@@ -629,7 +618,7 @@ window.addEventListener('load', e => {
             return;
         }
         const id = opt.value.split(/\s/)[1];
-        joinGame(parseInt(id));
+        newGame(parseInt(id));
     });
 
     $('#computer').addEventListener('click', e => {
