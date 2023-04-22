@@ -151,10 +151,10 @@ class Game {
         this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? 'http://10.100.205.6:8080/join?game=0&p=1' : 'http://10.100.205.6:8080/new')
+        fetch(this.join ? `http://10.100.205.6:8080/join?game=${this.id}&p=1` : 'http://10.100.205.6:8080/new')
         .then(resp => resp.json())
         .then(json => {
-            console.log(json);
+            this.id = json.Key;
             this.init(json)
         })
         .catch(err => console.log(err));
@@ -309,10 +309,9 @@ class Game {
     startPoll() {
         const p = this.join ? 1 : 0;
         this.poll = setInterval(() => {
-            fetch(`http://10.100.205.6:8080/info?game=0&p=${p}`)
+            fetch(`http://10.100.205.6:8080/info?game=${this.id}&p=${p}`)
             .then(resp => resp.json())
             .then(json => {
-                console.log(json);
                 this.update(json)
             })
             .catch(err => console.log(err));
@@ -452,7 +451,7 @@ class Action {
 
     take() {
         game.pending = true;
-        fetch('http://10.100.205.6:8080/action?game=0', {
+        fetch(`http://10.100.205.6:8080/action?game=${game.id}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -461,8 +460,6 @@ class Action {
         })
         .then(resp => resp.json())
         .then(json => {
-            console.log(this.orig.PlayerIdx, this.pidx);
-            console.log(json);
             game.pending = false;
             /*if (json.Winner && parseInt(json.Winner) != -1) {
                 console.log(`winner ${json.Winner}`);
@@ -521,16 +518,6 @@ class Player {
         });
         return i;
     }
-
-    /*fetchActions() {
-        fetch(`http://10.100.205.6:8080/actions?p=${this.n}`)
-        .then(resp => resp.json())
-        .then(json => {
-            this.actions = json.map(act => new Action(act));
-            this.updateButtons();
-        })
-        .catch(err => console.log(err));
-    }*/
 
     layout() {
         const n = this.hand.length;
@@ -607,6 +594,43 @@ class Card {
 window.addEventListener('load', e => {
     loadImages();
 
+    setInterval(e => {
+        fetch('http://10.100.205.6:8080/list')
+        .then(resp => resp.json())
+        .then(json => {
+            json = json.sort();
+            const select = $('#durak-list select');
+            const toAdd = [];
+            const games = [...select.options].map(opt => parseInt(opt.value));
+            if (game && games.includes(game.id)) {
+                for (let i=0; i<select.options.length; i++) {
+                    const opt = select.options[i];
+                    if (parseInt(opt.value) == game.id) {
+                        console.log('a');
+                        select.remove(i);
+                        break;
+                    }
+                }
+            } 
+            for (let i=0; i<select.options.length; i++) {
+                const opt = select.options[i];
+                if (!json.includes(parseInt(opt.value))) {
+                    console.log(opt.value);
+                    select.remove(i--);
+                }
+            }
+            json.forEach(key => {
+                if (!games.includes(key) && !(game && game.id == key)) {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.innerHTML = `Game ${key}`;
+                    select.appendChild(opt);
+                }
+            });
+        })
+        .catch(err => console.log(err));
+    }, 1000);
+
     $('#new').addEventListener('click', e => {
         newGame(-1);
     });
@@ -617,17 +641,16 @@ window.addEventListener('load', e => {
         if (!opt) {
             return;
         }
-        const id = opt.value.split(/\s/)[1];
-        newGame(parseInt(id));
+        newGame(parseInt(opt.value));
     });
 
-    $('#computer').addEventListener('click', e => {
+    /*$('#computer').addEventListener('click', e => {
         newGame(-1, true);
-    });
+    });*/
 
-    $('#quit').addEventListener('click', e => {
+    /*$('#quit').addEventListener('click', e => {
         console.log('Quit');
-    });
+    });*/
 
     canvas = $('#durak-canvas');
     ctx = canvas.getContext('2d');

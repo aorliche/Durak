@@ -3,9 +3,10 @@ package main
 import (
     "encoding/json"
     "fmt"
+    "os"
     "net/http"
-    //"net/url"
     "strconv"
+    "time"
 )
 
 var games = make(map[int]*Game)
@@ -40,9 +41,11 @@ func GetGame(w http.ResponseWriter, req *http.Request) *Game {
 }
 
 func List(w http.ResponseWriter, req *http.Request) {
-    keys := make([]int, len(games))
+    keys := make([]int, 0)
     for key := range games {
-        keys = append(keys, key) 
+        if !games[key].joined {
+            keys = append(keys, key) 
+        }
     }
     jsn, _ := json.Marshal(keys)
     fmt.Fprintf(w, "%s\n", jsn)
@@ -53,6 +56,7 @@ func Join(w http.ResponseWriter, req *http.Request) {
     if game == nil { 
         return
     }
+    game.joined = true
     Info(w, req)
 }
 
@@ -80,16 +84,19 @@ func Info(w http.ResponseWriter, req *http.Request) {
         return
     }
     mp := 1-p
-    upd := GameUpdate{Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(mp), Actions: actions, Winner: game.CheckWinner()}
-    //game.RecordUpdate(&upd, true)
+    upd := GameUpdate{Key: game.Key, Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(mp), Actions: actions, Winner: game.CheckWinner()}
     jsn,_ := json.Marshal(upd)
     fmt.Fprintf(w, "%s\n", jsn)
+    if len(game.Recording) == 0 {
+        // Unmask player cards
+        upd.Players = game.Players
+        game.Recording = append(game.Recording, &Record{Update: &upd})
+    }
     game.mutex.Unlock()
 }
 
 func TakeAction(w http.ResponseWriter, req *http.Request) {
     game := GetGame(w, req)
-    fmt.Println(game)
     if game == nil {
         return
     }
@@ -102,17 +109,22 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     }
     jsn,_ := json.Marshal(act)
     fmt.Printf("%s\n", jsn)
-    gameUpd,err := game.TakeAction(&act) 
-    if gameUpd != nil {
-        game.RecordAction(&act)
-        game.RecordUpdate(gameUpd, false)
-    } else {
-        actions := game.PlayerActions(game.Players[act.PlayerIdx])
-        game.RecordAction(&act)
-        game.RecordPossibleActions(act.PlayerIdx, actions)
-    }
-    jsn,_ = json.Marshal(err == nil)
+    upd := game.TakeAction(&act) 
+    jsn,_ = json.Marshal(upd != nil)
     fmt.Fprintf(w, "%s\n", jsn)
+    if upd != nil {
+        game.Recording = append(game.Recording, &Record{Action: &act})
+        game.Recording = append(game.Recording, &Record{Update: upd})
+        if game.CheckWinner() != -1 {
+            jsn,_ = json.Marshal(game.Recording)
+            ts := time.Now().Unix()
+            err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
+            if err != nil {
+                fmt.Println("Error writing game file")
+            }
+            //fmt.Println(string(jsn))
+        }
+    } 
     game.mutex.Unlock()
 }
 
@@ -120,7 +132,7 @@ type HFunc func (http.ResponseWriter, *http.Request)
 
 func Headers(fn HFunc) HFunc {
     return func (w http.ResponseWriter, req *http.Request) {
-        fmt.Println(req.Method)
+        //fmt.Println(req.Method)
         w.Header().Set("Access-Control-Allow-Origin", "*")
         w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
         w.Header().Set("Access-Control-Allow-Headers",

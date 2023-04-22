@@ -47,23 +47,6 @@ func (game *Game) GetDefender() *Player {
     return game.GetByRole("Defender")
 }
 
-func (game *Game) PlayerNames() []string {
-    names := make([]string, len(game.Players))
-    for i,p := range game.Players {
-        names[i] = p.Name
-    }
-    return names
-}
-
-func (game *Game) PlayerFromName(name string) *Player {
-    for _,p := range game.Players {
-        if p.Name == name {
-            return p
-        }
-    }
-    return nil
-}
-
 func (game *Game) PlayerActions(p *Player) []*Action {
     if p == game.GetAttacker() {
         return game.AttackerActions()
@@ -78,7 +61,7 @@ func (game *Game) MaskedPlayers(pIdx int) []*Player {
     for i := 0; i < len(hand); i++ {
         hand[i] = &Card{Rank: "Unkown", Suit: "Unknown"}
     }
-    p := Player{Name: po.Name, Idx: pIdx, Hand: hand}
+    p := Player{Idx: pIdx, Hand: hand}
     players := make([]*Player, 2)
     players[1-pIdx] = game.Players[1-pIdx]
     players[pIdx] = &p
@@ -162,20 +145,17 @@ func (game *Game) ReverseRank() string {
     return r
 }
 
-func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
+func (game *Game) TakeAction(act *Action) *GameUpdate {
     valid := false
     p := game.Players[act.PlayerIdx]
-    //fmt.Println("---")
     for _,a := range game.PlayerActions(p) {
-        //jsn,_ := json.Marshal(a)
-        //fmt.Printf("%s\n", jsn)
         if reflect.DeepEqual(a, act) {
             valid = true
             break
         }
     }
     if !valid {
-        return nil,fmt.Errorf("Invalid action")
+        return nil
     }
     //fmt.Println(act.Verb)
     switch act.Verb {
@@ -190,9 +170,6 @@ func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
             game.Board.Covers[idx] = act.Card
         }
         case "Pickup": {
-            /*p.Hand = append(p.Hand, Cat(game.Board.Plays, game.Board.Covers)...)
-            p.Board.Plays = make([]*Card,0)
-            p.Board.Covers = make([]*Card,0)*/
             game.PickingUp = true
         }
         case "Reverse": {
@@ -214,29 +191,22 @@ func (game *Game) TakeAction(act *Action) (*GameUpdate,error) {
             if !game.PickingUp {
                 game.Defender = 1-game.Defender
             }
-            actions := make([][]*Action,0)
-            for _,p := range game.Players {
-                actions = append(actions, game.PlayerActions(p))
-            }
             game.PickingUp = false
-            // Not used anymore
-            return &GameUpdate{
-                Board: game.Board, 
-                Deck: len(game.Deck), 
-                Trump: game.Trump, 
-                Players: game.MaskedPlayers(1), 
-                Actions: actions,
-                Winner: -1,
-            }, nil
         }
     }
-    winner := game.CheckWinner()
-    if winner != -1 {
-        return &GameUpdate{
-            Winner: winner,
-        },nil
+    // Only used for recording
+    actions := make([][]*Action,0)
+    for _,p := range game.Players {
+        actions = append(actions, game.PlayerActions(p))
     }
-    return nil,nil
+    return &GameUpdate{
+        Board: game.Board, 
+        Deck: len(game.Deck), 
+        Trump: game.Trump, 
+        Players: game.Players,
+        Actions: actions,
+        Winner: game.CheckWinner(),
+    }
 }
 
 func (game *Game) CheckWinner() int {
@@ -269,7 +239,7 @@ func InitDeck() []*Card {
 }
 
 func InitPlayer(idx int) *Player {
-    return &Player{Hand: make([]*Card, 0), Idx: idx, Name: fmt.Sprint(idx)}
+    return &Player{Hand: make([]*Card, 0), Idx: idx}
 }
 
 func InitBoard() *Board {
@@ -319,7 +289,8 @@ func InitGame(key int) *Game {
         Defender: 1, 
         PickingUp: false,
         Recording: make([]*Record, 0),
-        Versus: "Computer"}
+        Versus: "Computer",
+        joined: false}
     game.Trump = game.Deck[0]
     game.DealAll()
     //StartRandom()

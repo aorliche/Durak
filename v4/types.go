@@ -21,20 +21,21 @@ type Game struct {
     PickingUp bool
     Recording []*Record
     Versus string
+    joined bool
     mutex sync.Mutex
 }
 
 type Record struct {
     Action *Action
-    Actions [][]*Action
+    //Actions [][]*Action
     // On hand boundaries
     Update *GameUpdate
 }
 
-type ActionResponse struct {
+/*type ActionResponse struct {
     Success bool
     Actions []*Action
-}
+}*/
 
 /*type ActionsUpdate struct {
     PlayerIdx int
@@ -42,6 +43,7 @@ type ActionResponse struct {
 }*/
 
 type GameUpdate struct {
+    Key int
     Board *Board
     Deck int
     Trump *Card
@@ -56,7 +58,6 @@ type Board struct {
 }
 
 type Player struct {
-    Name string     `json:"omitempty"`
     Idx int
     Hand []*Card
 }
