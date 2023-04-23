@@ -1,16 +1,11 @@
 package main
-/*
+
 import (
     "fmt"
     "time"
 ) 
 
-var running bool
-
-func MakeRandomPlay() {
-    if game == nil {
-        return
-    }
+func MakeRandomPlay(game *Game) {
     game.mutex.Lock()
     if game.CheckWinner() != -1 {
         game.mutex.Unlock()
@@ -19,49 +14,42 @@ func MakeRandomPlay() {
     // Make non-pass, non-pickup play if possible
     actions := game.PlayerActions(game.Players[1]) 
     found := false
+    var act *Action
+    var upd *Update
     for _,a := range Shuffle(actions) {
         if a.Verb == "Attack" || a.Verb == "Defend" || a.Verb == "Reverse" {
             found = true
-            _,err := game.TakeAction(a)
-            if err != nil {
-                fmt.Println(err)
-            } else {
-                fmt.Println("Broke")
+            upd = game.TakeAction(a)
+            if upd != nil {
+                act = a
                 break
-            }
+            } 
         }
     }
     if !found {
         for _,a := range actions {
             if a.Verb == "Pass" || a.Verb == "Pickup" {
-                _,err := game.TakeAction(a)
-                if err != nil {
-                    fmt.Println(err)
-                }
+                found = true
+                upd = game.TakeAction(a)
+                act = a
             }
         }
+    }
+    if upd != nil {
+        game.Recording = append(game.Recording, &Record{Action: act})
+        game.Recording = append(game.Recording, &Record{Update: upd})
+    } else if found {
+        fmt.Println("Error in Random AI B")
     }
     game.mutex.Unlock()
 }
 
-func StartRandom() {
-    if running {
-        return
-    }
-    running = true
-    go RandomLoop()
-}
-
-func RandomLoop() {
+func RandomLoop(game *Game) {
     for {
-        if !running {
+        if game.CheckWinner() != -1 {
             break
         }
         time.Sleep(time.Second)
-        MakeRandomPlay()  
+        MakeRandomPlay(game)  
     }
 }
-
-func StopRandom() {
-    running = false
-}*/

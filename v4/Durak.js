@@ -151,7 +151,7 @@ class Game {
         this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? `http://10.100.205.6:8080/join?game=${this.id}&p=1` : 'http://10.100.205.6:8080/new')
+        fetch(this.join ? `http://10.100.205.6:8080/join?game=${this.id}&p=1` : `http://10.100.205.6:8080/new?computer=${!!computer}`)
         .then(resp => resp.json())
         .then(json => {
             this.id = json.Key;
@@ -161,7 +161,6 @@ class Game {
         this.dragging = null;
         this.pending = false;
         this.winner = null;
-        this.computer = computer;
         this.initButtons();
         this.startPoll();
     }
@@ -194,7 +193,11 @@ class Game {
         });
         this.board.draw(ctx);
         if (this.winner !== null) {
-            drawText(ctx, `Player ${this.winner} wins!`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
+            let text = "You lose...";
+            if ((this.join && this.winner == 1) || this.winner == 0) {
+                text = "You win!";
+            }
+            drawText(ctx, `${text}`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
         }
         if (this.dragging) {
             this.dragging.draw(ctx, true);
@@ -403,9 +406,6 @@ class Game {
         this.updateButtons();
         if (parseInt(json.Winner) != -1) {
             this.winner = parseInt(json.Winner);
-            if (this.join) {
-                this.winner = 1-this.winner;
-            }
             this.stopPoll();
         }
         this.players[0].setHovering(i);
@@ -644,9 +644,9 @@ window.addEventListener('load', e => {
         newGame(parseInt(opt.value));
     });
 
-    /*$('#computer').addEventListener('click', e => {
+    $('#computer').addEventListener('click', e => {
         newGame(-1, true);
-    });*/
+    });
 
     /*$('#quit').addEventListener('click', e => {
         console.log('Quit');

@@ -145,7 +145,7 @@ func (game *Game) ReverseRank() string {
     return r
 }
 
-func (game *Game) TakeAction(act *Action) *GameUpdate {
+func (game *Game) TakeAction(act *Action) *Update {
     valid := false
     p := game.Players[act.PlayerIdx]
     for _,a := range game.PlayerActions(p) {
@@ -199,7 +199,7 @@ func (game *Game) TakeAction(act *Action) *GameUpdate {
     for _,p := range game.Players {
         actions = append(actions, game.PlayerActions(p))
     }
-    return &GameUpdate{
+    return &Update{
         Board: game.Board, 
         Deck: len(game.Deck), 
         Trump: game.Trump, 
@@ -277,8 +277,7 @@ func (game *Game) ToStr() string {
     return strings.Join(str, "\n")
 }
 
-func InitGame(key int) *Game {
-    //StopRandom()
+func InitGame(key int, comp bool) *Game {
     game := Game{
         Key: key,
         Deck: InitDeck(), 
@@ -289,11 +288,13 @@ func InitGame(key int) *Game {
         Defender: 1, 
         PickingUp: false,
         Recording: make([]*Record, 0),
-        Versus: "Computer",
+        Versus: Ternary(comp, "Computer", "Human"),
         joined: false}
     game.Trump = game.Deck[0]
     game.DealAll()
-    //StartRandom()
+    if comp {
+        go RandomLoop(&game)
+    }
     return &game
 }
 

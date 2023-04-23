@@ -29,7 +29,7 @@ type Record struct {
     Action *Action
     //Actions [][]*Action
     // On hand boundaries
-    Update *GameUpdate
+    Update *Update
 }
 
 /*type ActionResponse struct {
@@ -42,7 +42,7 @@ type Record struct {
     Actions []*Action
 }*/
 
-type GameUpdate struct {
+type Update struct {
     Key int
     Board *Board
     Deck int
