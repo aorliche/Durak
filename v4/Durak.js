@@ -1,4 +1,6 @@
 
+let ip;
+
 $ = q => document.querySelector(q);
 $$ = q => [...document.querySelectorAll(q)]
 
@@ -151,7 +153,7 @@ class Game {
         this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? `http://10.100.205.6:8080/join?game=${this.id}&p=1` : `http://10.100.205.6:8080/new?computer=${!!computer}`)
+        fetch(this.join ? `http://${ip}:8080/join?game=${this.id}&p=1` : `http://${ip}:8080/new?computer=${!!computer}`)
         .then(resp => resp.json())
         .then(json => {
             this.id = json.Key;
@@ -312,7 +314,7 @@ class Game {
     startPoll() {
         const p = this.join ? 1 : 0;
         this.poll = setInterval(() => {
-            fetch(`http://10.100.205.6:8080/info?game=${this.id}&p=${p}`)
+            fetch(`http://${ip}:8080/info?game=${this.id}&p=${p}`)
             .then(resp => resp.json())
             .then(json => {
                 this.update(json)
@@ -438,20 +440,9 @@ class Action {
         this.cover = obj.Cover ? new Card(cardIndexFromObj(obj.Cover)) : null;
     }
 
-    // TODO implement Defend and Reverse
-    /*rollback() {
-        switch (this.verb) {
-            case "Attack": {
-                game.players[this.pidx].hand.push(this.card);
-                game.board.plays.splice(game.board.plays.indexOf(this.card), 1);
-                break;
-            }
-        }
-    }*/
-
     take() {
         game.pending = true;
-        fetch(`http://10.100.205.6:8080/action?game=${game.id}`, {
+        fetch(`http://${ip}:8080/action?game=${game.id}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -461,24 +452,6 @@ class Action {
         .then(resp => resp.json())
         .then(json => {
             game.pending = false;
-            /*if (json.Winner && parseInt(json.Winner) != -1) {
-                console.log(`winner ${json.Winner}`);
-                game.winner = parseInt(json.Winner);
-                return;
-            } else if (this.verb == 'Pass') {
-                game.update(json);
-                game.players[0].updateButtons();
-                game.players[1].updateButtons();
-                return;
-            } else if (!json.Success) {
-                this.rollback();
-            } else {
-                // Update actions for other player
-                game.players[1-this.orig.PlayerIdx].fetchActions();
-            }
-            game.players[this.orig.PlayerIdx].actions = json.Actions.map(act => new Action(act));
-            game.players[this.orig.PlayerIdx].updateButtons();
-            */
         })
         .catch(err => console.log(err));
     }
@@ -594,8 +567,16 @@ class Card {
 window.addEventListener('load', e => {
     loadImages();
 
+    fetch('/Durak.ip')
+    .then(resp => resp.json())
+    .then(json => {
+        ip = json;
+    })
+    .catch(err => console.log(err));
+
     setInterval(e => {
-        fetch('http://10.100.205.6:8080/list')
+        if (!ip) return;
+        fetch(`http://${ip}:8080/list`)
         .then(resp => resp.json())
         .then(json => {
             json = json.sort();
