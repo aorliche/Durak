@@ -129,6 +129,16 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     game.mutex.Unlock()
 }
 
+func Knowledge(w http.ResponseWriter, req *http.Request) {
+    game := GetGame(w, req)
+    if game == nil {
+        return
+    }
+    jsn,_ := json.Marshal(game.memory)
+    fmt.Printf("%s\n", jsn)
+    fmt.Fprintf(w, "%s\n", jsn)
+}
+
 type HFunc func (http.ResponseWriter, *http.Request)
 
 func Headers(fn HFunc) HFunc {
@@ -148,5 +158,6 @@ func main() {
     http.HandleFunc("/join", Headers(Join))
     http.HandleFunc("/info", Headers(Info))
     http.HandleFunc("/action", Headers(TakeAction))
+    http.HandleFunc("/memory", Headers(Knowledge))
     http.ListenAndServe("0.0.0.0:8080", nil)
 }

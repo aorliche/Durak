@@ -662,4 +662,15 @@ window.addEventListener('load', e => {
             game.draw(ctx);
         }
     }, 100);
+
+    $('#memory').addEventListener('click', e => {
+        e.preventDefault();
+        fetch(`http://${ip}:8080/memory?game=${game.id}`)
+        .then(resp => resp.json())
+        .then(json => {
+            const text = $('#text');
+            text.value = JSON.stringify(json);
+        })
+        .catch(err => console.log(err));
+    });
 });
