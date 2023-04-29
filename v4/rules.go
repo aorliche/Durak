@@ -163,11 +163,13 @@ func (game *Game) TakeAction(act *Action) *Update {
             p.Hand = Remove(p.Hand, act.Card)
             game.Board.Plays = append(game.Board.Plays, act.Card)
             game.Board.Covers = append(game.Board.Covers, nil)
+            game.memory.RemoveCard(p, act.Card)
         }
         case "Defend": {
             p.Hand = Remove(p.Hand, act.Card)
             idx := IndexOf(game.Board.Plays, act.Cover)
             game.Board.Covers[idx] = act.Card
+            game.memory.RemoveCard(p, act.Card)
         }
         case "Pickup": {
             game.PickingUp = true
@@ -177,11 +179,15 @@ func (game *Game) TakeAction(act *Action) *Update {
             game.Board.Plays = append(game.Board.Plays, act.Card)
             game.Board.Covers = append(game.Board.Covers, nil)
             game.Defender = 1-game.Defender
+            game.memory.RemoveCard(p, act.Card)
         }
         case "Pass": {
+            board := Cat(game.Board.Plays, NotNil(game.Board.Covers))
             if game.Board.Covered() < len(game.Board.Plays) {
-                game.GetDefender().Hand = append(game.GetDefender().Hand, 
-                    Cat(game.Board.Plays, NotNil(game.Board.Covers))...) 
+                game.GetDefender().Hand = append(game.GetDefender().Hand, board...) 
+                game.memory.AddCards(p, board)
+            } else {
+                game.memory.DiscardCards(board)
             }
             game.Board.Plays = make([]*Card,0)
             game.Board.Covers = make([]*Card,0)
@@ -192,6 +198,7 @@ func (game *Game) TakeAction(act *Action) *Update {
                 game.Defender = 1-game.Defender
             }
             game.PickingUp = false
+            game.memory.SetSizes(game.Players)
         }
     }
     // Only used for recording
@@ -289,7 +296,8 @@ func InitGame(key int, comp bool) *Game {
         PickingUp: false,
         Recording: make([]*Record, 0),
         Versus: Ternary(comp, "Computer", "Human"),
-        joined: false}
+        joined: false,
+        memory: InitMemory(2)}
     game.Trump = game.Deck[0]
     game.DealAll()
     if comp {

@@ -23,24 +23,13 @@ type Game struct {
     Versus string
     joined bool
     mutex sync.Mutex
+    memory *Memory
 }
 
 type Record struct {
     Action *Action
-    //Actions [][]*Action
-    // On hand boundaries
     Update *Update
 }
-
-/*type ActionResponse struct {
-    Success bool
-    Actions []*Action
-}*/
-
-/*type ActionsUpdate struct {
-    PlayerIdx int
-    Actions []*Action
-}*/
 
 type Update struct {
     Key int
@@ -62,18 +51,22 @@ type Player struct {
     Hand []*Card
 }
 
-// TODO Remember player having cards (e.g. from pickup or process of elimination at the end of deck)
+type Memory struct {
+    Hands [][]*Card 
+    Sizes []int
+    Discard []*Card
+}
+
 type Card struct {
     Rank string     
     Suit string     
 }
 
-// No card matching, only predefined actions
 type Action struct {
     PlayerIdx int
-    Verb string     // Attack Defend Pickup Pass (Reverse later)
-    Card *Card      // When covering Card covers Cover
-    Cover *Card   
+    Verb string     // Attack Defend Pickup Pass Reverse
+    Card *Card      
+    Cover *Card     // When covering, Card covers Cover, otherwise nil
 }
 
 // Match card with respect to goal
