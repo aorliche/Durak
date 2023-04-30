@@ -24,9 +24,13 @@
     width: 160px;
     min-height: 200px;
 }
-#durak-interact {
+#durak-memory {
     margin-left: 20px;
 }
-#text {
-    margin-top: 10px;
+#durak-memory img {
+    width: 40px;
+    padding: 2px;
+}
+#discard img {
+    opacity: 50%;
 }

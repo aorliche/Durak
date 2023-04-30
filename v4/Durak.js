@@ -321,12 +321,24 @@ class Game {
             })
             .catch(err => console.log(err));
         }, 500);
+        this.memPoll = setInterval(() => {
+            fetch(`http://${ip}:8080/memory?game=${this.id}`)
+            .then(resp => resp.json())
+            .then(json => {
+                updateKnowledge(json);
+            })
+            .catch(err => console.log(err));
+        }, 500);
     }
 
     stopPoll() {
         if (this.poll) {
             clearInterval(this.poll);
             this.poll = null;
+        }
+        if (this.memPoll) {
+            clearInterval(this.memPoll);
+            this.memPoll = null;
         }
     }
 
@@ -471,7 +483,7 @@ class Player {
                 const c1 = game.board.plays[i];
                 const c2 = game.board.covers[i];
                 if (c.i == c1.i || (c2 && c2.i == c.i)) {
-                    console.log('skipped');
+                    //console.log('skipped');
                     return;
                 }
             }
@@ -561,6 +573,41 @@ class Card {
             cb(this.x,y,w,h,m);
         }
         ctx.restore();
+    }
+}
+
+function updateKnowledge(json) {
+    const p0 = $('#p0-hand');
+    const p1 = $('#p1-hand');
+    const discard = $('#discard');
+    p0.innerHTML = '';
+    p1.innerHTML = '';
+    discard.innerHTML = '';
+    for (let i=0; i<json.Sizes[0]; i++) {
+        if (i < json.Hands[0].length) {
+            const c = json.Hands[0][i];
+            p0.appendChild(cardImages[cardIndexFromObj(c)].cloneNode());
+        } else {
+            p0.appendChild(cardBackImage.cloneNode());
+        }
+    }
+    for (let i=0; i<json.Sizes[1]; i++) {
+        if (i < json.Hands[1].length) {
+            const c = json.Hands[1][i];
+            p1.appendChild(cardImages[cardIndexFromObj(c)].cloneNode());
+        } else {
+            p1.appendChild(cardBackImage.cloneNode());
+        }
+    }
+    const ds = json.Discard.map(c => cardIndexFromObj(c));
+    for (let i=0; i<36; i++) {
+        if (ds.includes(i)) {
+            const elt = cardImages[i].cloneNode();
+            elt.style.opacity = 1.0;
+            discard.append(elt);
+        } else {
+            discard.append(cardBackImage.cloneNode());
+        }
     }
 }
 
@@ -663,14 +710,14 @@ window.addEventListener('load', e => {
         }
     }, 100);
 
-    $('#memory').addEventListener('click', e => {
+    /*$('#memory').addEventListener('click', e => {
         e.preventDefault();
         fetch(`http://${ip}:8080/memory?game=${game.id}`)
         .then(resp => resp.json())
         .then(json => {
-            const text = $('#text');
-            text.value = JSON.stringify(json);
+            updateKnowledge(json);
+            //text.value = JSON.stringify(json);
         })
         .catch(err => console.log(err));
-    });
+    });*/
 });
