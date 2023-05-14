@@ -134,7 +134,7 @@ func StartChain(act *Action) []*Action {
 }
 
 func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
-    if depth > 7 {
+    if depth > 6 {
         return StartChain(nil), state.EvalMystery(me)
     }
     var acts []*Action
@@ -288,9 +288,8 @@ func (state *GameState) PickupPenalty(me int) float64 {
     if state.DeckSize < 2 {
         val += 8
     }
-    hsize := len(state.Hands[me])
-    if hsize > 4 {
-        val += hsize-4
+    if len(state.Hands[me]) > 6 {
+        val += 3
     }
     val += len(NotNil(Cat(state.Board.Plays, state.Board.Covers)))
     return float64(val)
