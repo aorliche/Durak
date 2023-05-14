@@ -300,6 +300,7 @@ func InitGame(key int, comp string) *Game {
         Versus: comp, 
         joined: false,
         memory: InitMemory(2)}
+    fmt.Println(comp)
     game.Trump = game.Deck[0]
     game.DealAll()
     if comp == "Easy" {

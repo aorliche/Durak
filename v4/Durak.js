@@ -660,7 +660,7 @@ window.addEventListener('load', e => {
     }, 1000);
 
     $('#new').addEventListener('click', e => {
-        newGame(-1, 'human');
+        newGame(-1, 'Human');
     });
 
     $('#join').addEventListener('click', e => {

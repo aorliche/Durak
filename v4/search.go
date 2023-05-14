@@ -2,7 +2,7 @@ package main
 
 import (
     "encoding/json"
-    //"fmt"
+    "fmt"
     "math"
     clone "github.com/huandu/go-clone"
 )
@@ -82,7 +82,8 @@ func (state *GameState) AttackerActions(pIdx int) []*Action {
         for _,bc := range state.Board.Cards() {
             for _,pc := range state.Hands[pIdx] {
                 // Unique actions
-                if bc != nil && (bc.Rank == pc.Rank || pc.Rank == "?")&& IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
+                if bc != nil && (bc.Rank == pc.Rank || pc.Rank == "?") && 
+                        IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
                     act := Action{PlayerIdx: pIdx, Verb: "Attack", Card: pc}
                     res = append(res, &act)
                 }
@@ -179,6 +180,9 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         // Regular known move
         } else {
             c,r := s.Move(me, depth+1)
+            if len(c) == 2 && c[0].Card != nil && c[1].Card != nil && c[0].Card.Rank == c[1].Card.Rank {
+                fmt.Println(r)
+            }
             evals[2*i] = r
             chains[2*i] = Ternary(c == nil, nil, append(c, act))
             c,r = s.Move(1-me, depth+1)
@@ -254,7 +258,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
         if c != nil && c.Rank != "?" {
             res += float64(IndexOf(ranks, c.Rank) - 4)
             if c.Suit == state.Trump {
-                res += 10
+                res += 100
             }
         }
     }
