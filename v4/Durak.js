@@ -153,7 +153,7 @@ class Game {
         this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? `http://${ip}:8080/join?game=${this.id}&p=1` : `http://${ip}:8080/new?computer=${!!computer}`)
+        fetch(this.join ? `http://${ip}:8080/join?game=${this.id}&p=1` : `http://${ip}:8080/new?computer=${computer}`)
         .then(resp => resp.json())
         .then(json => {
             this.id = json.Key;
@@ -660,7 +660,7 @@ window.addEventListener('load', e => {
     }, 1000);
 
     $('#new').addEventListener('click', e => {
-        newGame(-1);
+        newGame(-1, 'human');
     });
 
     $('#join').addEventListener('click', e => {
@@ -669,11 +669,15 @@ window.addEventListener('load', e => {
         if (!opt) {
             return;
         }
-        newGame(parseInt(opt.value));
+        newGame(parseInt(opt.value), 'human');
     });
 
-    $('#computer').addEventListener('click', e => {
-        newGame(-1, true);
+    $('#easy').addEventListener('click', e => {
+        newGame(-1, 'Easy');
+    });
+
+    $('#medium').addEventListener('click', e => {
+        newGame(-1, 'Medium');
     });
 
     /*$('#quit').addEventListener('click', e => {

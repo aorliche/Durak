@@ -62,7 +62,7 @@ func Join(w http.ResponseWriter, req *http.Request) {
 
 func New(w http.ResponseWriter, req *http.Request) {
     comp := req.URL.Query().Get("computer")
-    game := InitGame(NextGameIdx(), comp == "true")
+    game := InitGame(NextGameIdx(), comp)
     games[game.Key] = game
     req.URL.RawQuery = fmt.Sprintf("p=0&game=%d", game.Key)
     Info(w, req)
@@ -85,7 +85,14 @@ func Info(w http.ResponseWriter, req *http.Request) {
         return
     }
     mp := 1-p
-    upd := Update{Key: game.Key, Board: game.Board, Deck: len(game.Deck), Trump: game.Trump, Players: game.MaskedPlayers(mp), Actions: actions, Winner: game.CheckWinner()}
+    upd := Update{
+        Key: game.Key, 
+        Board: game.Board, 
+        Deck: len(game.Deck), 
+        Trump: game.Trump, 
+        Players: game.MaskedPlayers(mp), 
+        Actions: actions, 
+        Winner: game.CheckWinner()}
     jsn,_ := json.Marshal(upd)
     fmt.Fprintf(w, "%s\n", jsn)
     if len(game.Recording) == 0 {
@@ -109,7 +116,7 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
         return
     }
     jsn,_ := json.Marshal(act)
-    fmt.Printf("%s\n", jsn)
+    //fmt.Printf("%s\n", jsn)
     upd := game.TakeAction(&act) 
     jsn,_ = json.Marshal(upd != nil)
     fmt.Fprintf(w, "%s\n", jsn)
@@ -135,7 +142,7 @@ func Knowledge(w http.ResponseWriter, req *http.Request) {
         return
     }
     jsn,_ := json.Marshal(game.memory)
-    fmt.Printf("%s\n", jsn)
+    //fmt.Printf("%s\n", jsn)
     fmt.Fprintf(w, "%s\n", jsn)
 }
 

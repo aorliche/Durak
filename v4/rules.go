@@ -7,6 +7,7 @@ import (
     "reflect"
     "strings"
     //T "gorgonia.org/tensor"
+    //"github.com/go-test/deep"
 )
 
 var suits = []string{"Clubs", "Spades", "Hearts", "Diamonds"}
@@ -133,7 +134,7 @@ func (game *Game) DefenderActions() []*Action {
 }
 
 func (game *Game) ReverseRank() string {
-    if len(game.Board.Plays) == 0 {
+    if len(game.Board.Plays) == 0 || len(game.Board.Covers) > 0 {
         return ""
     }
     r := game.Board.Plays[0].Rank
@@ -155,6 +156,7 @@ func (game *Game) TakeAction(act *Action) *Update {
         }
     }
     if !valid {
+        fmt.Println("Not valid")
         return nil
     }
     //fmt.Println(act.Verb)
@@ -284,7 +286,7 @@ func (game *Game) ToStr() string {
     return strings.Join(str, "\n")
 }
 
-func InitGame(key int, comp bool) *Game {
+func InitGame(key int, comp string) *Game {
     game := Game{
         Key: key,
         Deck: InitDeck(), 
@@ -295,13 +297,15 @@ func InitGame(key int, comp bool) *Game {
         Defender: 1, 
         PickingUp: false,
         Recording: make([]*Record, 0),
-        Versus: Ternary(comp, "Computer", "Human"),
+        Versus: comp, 
         joined: false,
         memory: InitMemory(2)}
     game.Trump = game.Deck[0]
     game.DealAll()
-    if comp {
+    if comp == "Easy" {
         go RandomLoop(&game)
+    } else if comp == "Medium" {
+        go MediumLoop(&game)
     }
     return &game
 }

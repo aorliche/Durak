@@ -31,7 +31,7 @@ func (b *Board) Cards() []*Card {
 }
 
 func (b *Board) ReverseRank() string {
-    if len(b.Plays) == 0 {
+    if len(b.Plays) == 0 || len(b.Covers) > 0 {
         return ""
     }
     r := b.Plays[0].Rank
@@ -59,11 +59,11 @@ func (state *GameState) Clone() *GameState {
 func InitGameState(game *Game) *GameState {
     hands := make([][]*Card, len(game.Players))
     for i,p := range game.Players {
-        hands[i] = p.Hand
+        hands[i] = clone.Clone(p.Hand).([]*Card)
     }
     return &GameState{
         Defender: game.Defender,
-        PickingUp: false,
+        PickingUp: game.PickingUp,
         Trump: game.Trump.Suit,
         DeckSize: len(game.Deck),
         Board: clone.Clone(game.Board).(*Board),
@@ -134,7 +134,7 @@ func StartChain(act *Action) []*Action {
 }
 
 func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
-    if depth > 8 {
+    if depth > 6 {
         return StartChain(nil), state.EvalMystery(me)
     }
     var acts []*Action
@@ -153,8 +153,9 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         s := state.Clone()
         s.TakeAction(act)
         // Check win
+        // Infinite value can confuse later action selection?
         if s.DeckSize == 0 && len(s.Hands[me]) == 0 {
-            return StartChain(act), math.Inf(1)
+            return StartChain(act), 1000
         }
         // End hand
         if act.Verb == "Pass" {
@@ -168,10 +169,12 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
             evals[2*i] = s.EvalMystery(me)
             chains[2*i+1] = nil
         // Pickup - Opponent's move will determine evaluation
+        // Penalize high hand count
+        // Penalize taking cards with zero deck size (end of game)
         } else if act.Verb == "Pickup" {
             chains[2*i] = nil
             c,r := s.Move(1-me, depth+1)
-            evals[2*i+1] = r
+            evals[2*i+1] = s.PickupPenalty(me) + r
             chains[2*i+1] = Ternary(c == nil, nil, append(c, act))
         // Regular known move
         } else {
@@ -278,4 +281,17 @@ func (state *GameState) EvalMystery(me int) float64 {
     } else {
         return state.SumValue(state.Board.Covers) - state.SumValue(state.Board.Plays)
     }
+}
+
+func (state *GameState) PickupPenalty(me int) float64 {
+    val := 0
+    if state.DeckSize < 2 {
+        val += 8
+    }
+    hsize := len(state.Hands[me])
+    if hsize > 4 {
+        val += hsize-4
+    }
+    val += len(NotNil(Cat(state.Board.Plays, state.Board.Covers)))
+    return float64(val)
 }
