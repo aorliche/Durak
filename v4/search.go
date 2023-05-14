@@ -31,7 +31,7 @@ func (b *Board) Cards() []*Card {
 }
 
 func (b *Board) ReverseRank() string {
-    if len(b.Plays) == 0 || len(b.Covers) > 0 {
+    if len(b.Plays) == 0 || len(NotNil(b.Covers)) > 0 {
         return ""
     }
     r := b.Plays[0].Rank

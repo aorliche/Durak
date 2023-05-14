@@ -105,7 +105,7 @@ func (game *Game) DefenderActions() []*Action {
         return res
     }
     p := game.GetDefender()
-    revRank := game.ReverseRank()
+    revRank := game.Board.ReverseRank()
     if revRank != "" {
         for _,pc := range p.Hand {
             if pc.Rank == revRank {
@@ -133,7 +133,7 @@ func (game *Game) DefenderActions() []*Action {
     return res
 }
 
-func (game *Game) ReverseRank() string {
+/*func (game *Game) ReverseRank() string {
     if len(game.Board.Plays) == 0 || len(game.Board.Covers) > 0 {
         return ""
     }
@@ -144,7 +144,7 @@ func (game *Game) ReverseRank() string {
         }
     }
     return r
-}
+}*/
 
 func (game *Game) TakeAction(act *Action) *Update {
     valid := false
