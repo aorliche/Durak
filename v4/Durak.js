@@ -196,7 +196,7 @@ class Game {
         this.board.draw(ctx);
         if (this.winner !== null) {
             let text = "You lose...";
-            if ((this.join && this.winner == 1) || this.winner == 0) {
+            if ((this.join && this.winner == 1) || (!this.join && this.winner == 0)) {
                 text = "You win!";
             }
             drawText(ctx, `${text}`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
