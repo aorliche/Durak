@@ -286,7 +286,7 @@ func (state *GameState) EvalMystery(me int) float64 {
 func (state *GameState) PickupPenalty(me int) float64 {
     val := 0
     if state.DeckSize < 2 {
-        val += 8
+        val += 20
     }
     if len(state.Hands[me]) > 6 {
         val += 3
