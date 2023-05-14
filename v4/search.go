@@ -134,7 +134,7 @@ func StartChain(act *Action) []*Action {
 }
 
 func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
-    if depth > 6 {
+    if depth > 7 {
         return StartChain(nil), state.EvalMystery(me)
     }
     var acts []*Action
@@ -254,7 +254,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
         if c != nil && c.Rank != "?" {
             res += float64(IndexOf(ranks, c.Rank) - 4)
             if c.Suit == state.Trump {
-                res += 5
+                res += 7
             }
         }
     }
