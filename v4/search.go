@@ -254,7 +254,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
         if c != nil && c.Rank != "?" {
             res += float64(IndexOf(ranks, c.Rank) - 4)
             if c.Suit == state.Trump {
-                res += 7
+                res += 10
             }
         }
     }
