@@ -22,12 +22,17 @@ func MakeBestPlay(game *Game) {
         c.Rank = mc.Rank
         c.Suit = mc.Suit
     }
-    chain,_ := state.Move(1, 0)
+    chain,val := state.Move(1, 0)
     if len(chain) == 0 {
         game.mutex.Unlock()
         return
     }
     act := chain[len(chain)-1]
+    fmt.Println(act,val)
+    if act.Verb == "Defer" {
+        game.mutex.Unlock()
+        return
+    }
     upd := game.TakeAction(act)
     if upd != nil {
         game.Recording = append(game.Recording, &Record{Action: act})

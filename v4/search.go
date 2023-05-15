@@ -2,7 +2,7 @@ package main
 
 import (
     "encoding/json"
-    "fmt"
+    //"fmt"
     "math"
     clone "github.com/huandu/go-clone"
 )
@@ -94,6 +94,11 @@ func (state *GameState) AttackerActions(pIdx int) []*Action {
         act := Action{PlayerIdx: pIdx, Verb: "Pass"}
         res = append(res, &act)
     }
+    // For AI to not throw trumps away
+    if len(state.Board.Plays) > len(NotNil(state.Board.Covers)) {
+        act := Action{PlayerIdx: pIdx, Verb: "Defer"}
+        res = append(res, &act)
+    }
     return res
 }
 
@@ -146,11 +151,15 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
     }
     // If you have no actions, return
     if len(acts) == 0 {
-        return nil,0 
+        return nil, 0 
     }
     evals := make([]float64, 2*len(acts))
     chains := make([][]*Action, 2*len(acts))
+    didMystery := false
     for i,act := range acts {
+        if act.Verb == "Defer" {
+            return StartChain(act), state.EvalPass(me) 
+        }
         s := state.Clone()
         s.TakeAction(act)
         // Check win
@@ -159,16 +168,18 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
             return StartChain(act), 1000
         }
         // End hand
-        if act.Verb == "Pass" {
+        if act.Verb == "Pass"{
             return StartChain(act), s.EvalPass(me) 
         }
         // Mystery card
+        // Only check one mystery card
         // TODO incorporate possibility of reverse
-        if act.Card != nil && act.Card.Rank == "?" {
+        if !didMystery && act.Card != nil && act.Card.Rank == "?" {
             //return StartChain(act), s.EvalMystery(me)
             chains[2*i] = StartChain(act)
             evals[2*i] = s.EvalMystery(me)
             chains[2*i+1] = nil
+            didMystery = true
         // Pickup - Opponent's move will determine evaluation
         // Penalize high hand count
         // Penalize taking cards with zero deck size (end of game)
@@ -180,9 +191,6 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         // Regular known move
         } else {
             c,r := s.Move(me, depth+1)
-            if len(c) == 2 && c[0].Card != nil && c[1].Card != nil && c[0].Card.Rank == c[1].Card.Rank {
-                fmt.Println(r)
-            }
             evals[2*i] = r
             chains[2*i] = Ternary(c == nil, nil, append(c, act))
             c,r = s.Move(1-me, depth+1)
@@ -258,7 +266,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
         if c != nil && c.Rank != "?" {
             res += float64(IndexOf(ranks, c.Rank) - 4)
             if c.Suit == state.Trump {
-                res += 100
+                res += 5
             }
         }
     }
@@ -290,10 +298,10 @@ func (state *GameState) EvalMystery(me int) float64 {
 func (state *GameState) PickupPenalty(me int) float64 {
     val := 0
     if state.DeckSize < 2 {
-        val += 20
+        val += 10
     }
     if len(state.Hands[me]) > 6 {
-        val += 3
+        val += len(state.Hands[me])-6
     }
     val += len(NotNil(Cat(state.Board.Plays, state.Board.Covers)))
     return float64(val)
