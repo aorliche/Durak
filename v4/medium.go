@@ -17,11 +17,7 @@ func MakeBestPlay(game *Game) {
         c.Rank = "?"
         c.Suit = "?"
     }
-    for i,mc := range game.memory.Hands[0] {
-        c := state.Hands[0][i] 
-        c.Rank = mc.Rank
-        c.Suit = mc.Suit
-    }
+    game.memory.SetKnownCards(state, 1, 0)
     chain,val := state.Move(1, 0)
     if len(chain) == 0 {
         game.mutex.Unlock()

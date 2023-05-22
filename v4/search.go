@@ -47,6 +47,7 @@ type GameState struct {
     Defender int
     PickingUp bool
     Trump string
+    TrumpRank string
     DeckSize int
     Board *Board
     Hands [][]*Card
@@ -65,6 +66,7 @@ func InitGameState(game *Game) *GameState {
         Defender: game.Defender,
         PickingUp: game.PickingUp,
         Trump: game.Trump.Suit,
+        TrumpRank: game.Trump.Rank,
         DeckSize: len(game.Deck),
         Board: clone.Clone(game.Board).(*Board),
         Hands: hands,
@@ -266,7 +268,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
         if c != nil && c.Rank != "?" {
             res += float64(IndexOf(ranks, c.Rank) - 4)
             if c.Suit == state.Trump {
-                res += 5
+                res += 7
             }
         }
     }
@@ -277,7 +279,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
 func (state *GameState) EvalPass(me int) float64 {
     var val float64
     if state.PickingUp {
-        val = state.SumValue(Cat(state.Board.Plays, state.Board.Covers))
+        val = state.SumValue(Cat(state.Board.Plays, state.Board.Covers)) - 4
         if me != state.Defender {
             val *= -1
         }
@@ -297,8 +299,8 @@ func (state *GameState) EvalMystery(me int) float64 {
 
 func (state *GameState) PickupPenalty(me int) float64 {
     val := 0
-    if state.DeckSize < 2 {
-        val += 10
+    if state.DeckSize < 10 {
+        val += 10 - state.DeckSize
     }
     if len(state.Hands[me]) > 6 {
         val += len(state.Hands[me])-6

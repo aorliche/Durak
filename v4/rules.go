@@ -165,13 +165,13 @@ func (game *Game) TakeAction(act *Action) *Update {
             p.Hand = Remove(p.Hand, act.Card)
             game.Board.Plays = append(game.Board.Plays, act.Card)
             game.Board.Covers = append(game.Board.Covers, nil)
-            game.memory.RemoveCard(p, act.Card)
+            game.memory.RemoveCard(p.Idx, act.Card)
         }
         case "Defend": {
             p.Hand = Remove(p.Hand, act.Card)
             idx := IndexOf(game.Board.Plays, act.Cover)
             game.Board.Covers[idx] = act.Card
-            game.memory.RemoveCard(p, act.Card)
+            game.memory.RemoveCard(p.Idx, act.Card)
         }
         case "Pickup": {
             game.PickingUp = true
@@ -181,13 +181,13 @@ func (game *Game) TakeAction(act *Action) *Update {
             game.Board.Plays = append(game.Board.Plays, act.Card)
             game.Board.Covers = append(game.Board.Covers, nil)
             game.Defender = 1-game.Defender
-            game.memory.RemoveCard(p, act.Card)
+            game.memory.RemoveCard(p.Idx, act.Card)
         }
         case "Pass": {
             board := Cat(game.Board.Plays, NotNil(game.Board.Covers))
             if game.Board.Covered() < len(game.Board.Plays) {
                 game.GetDefender().Hand = append(game.GetDefender().Hand, board...) 
-                game.memory.AddCards(p, board)
+                game.memory.AddCards(1-p.Idx, board)
             } else {
                 game.memory.DiscardCards(board)
             }
