@@ -51,6 +51,7 @@ type GameState struct {
     DeckSize int
     Board *Board
     Hands [][]*Card
+    Defering bool
 }
 
 func (state *GameState) Clone() *GameState {
@@ -75,6 +76,9 @@ func InitGameState(game *Game) *GameState {
 
 func (state *GameState) AttackerActions(pIdx int) []*Action {
     res := make([]*Action, 0)
+    if state.Defering {
+        return res
+    }
     if state.Board.Size() == 0 {
         for _,card := range state.Hands[pIdx] {
             act := Action{PlayerIdx: pIdx, Verb: "Attack", Card: card}
@@ -142,7 +146,7 @@ func StartChain(act *Action) []*Action {
 }
 
 func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
-    if depth > 6 {
+    if depth > 8 {
         return StartChain(nil), state.EvalMystery(me)
     }
     var acts []*Action
@@ -157,21 +161,43 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
     }
     evals := make([]float64, 2*len(acts))
     chains := make([][]*Action, 2*len(acts))
+    endGame := state.DeckSize <= 1
     didMystery := false
     for i,act := range acts {
         if act.Verb == "Defer" {
-            return StartChain(act), state.EvalPass(me) 
+            // If end of game, treat as pass and keep going
+            if endGame {
+                state.Defering = true
+            } else {
+                return StartChain(act), state.EvalPass(me) 
+            }
         }
         s := state.Clone()
-        s.TakeAction(act)
+        s.TakeAction(act, endGame)
         // Check win
         // Infinite value can confuse later action selection?
         if s.DeckSize == 0 && len(s.Hands[me]) == 0 {
             return StartChain(act), 1000
         }
         // End hand
-        if act.Verb == "Pass"{
-            return StartChain(act), s.EvalPass(me) 
+        if act.Verb == "Pass" {
+            if endGame {
+            // Go to end of game
+                if state.PickingUp {
+                    c,r := s.Move(me, depth+1)
+                    evals[2*i] = r
+                    chains[2*i] = append(c, act)
+                    chains[2*i+1] = nil
+                } else {
+                    c,r := s.Move(1-me, depth+1)
+                    evals[2*i+1] = r
+                    chains[2*i+1] = append(c, act)
+                    chains[2*i] = nil
+                }
+            } else {
+            // Go per-hand
+                return StartChain(act), s.EvalPass(me) 
+            }
         }
         // Mystery card
         // Only check one mystery card
@@ -235,7 +261,11 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
     return bestChain, best
 }
 
-func (state *GameState) TakeAction(act *Action) {
+// EndGame means we need to clear the board
+func (state *GameState) TakeAction(act *Action, endGame bool) {
+    if state.Defering && act.PlayerIdx == state.Defender {
+        state.Defering = false
+    }
     switch act.Verb {
         case "Attack": {
             state.Hands[act.PlayerIdx] = Remove(state.Hands[act.PlayerIdx], act.Card)
@@ -258,6 +288,15 @@ func (state *GameState) TakeAction(act *Action) {
         }
         case "Pass": {
             // Skip, handled in Move code
+            // ...unless it's the endgame
+            if endGame {
+                state.Board.Plays = make([]*Card, 0)
+                state.Board.Covers = make([]*Card, 0)
+                if !state.PickingUp {
+                    state.Defender = 1-state.Defender
+                }
+                state.PickingUp = false
+            }
         }
     }
 }

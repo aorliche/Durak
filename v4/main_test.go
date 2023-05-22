@@ -110,7 +110,7 @@ import (
     fmt.Println(HandString(state.Hands[0]))
 }*/
 
-func TestEndgame(t *testing.T) {
+/*func TestEndgame(t *testing.T) {
     game := InitGame(0, "Human")
     mem := InitMemory(2)
     state := InitGameState(game)
@@ -123,6 +123,28 @@ func TestEndgame(t *testing.T) {
     state.DeckSize = 0
     state.Defender = 0
     mem.SetKnownCards(state, 1, 0)
+    act,val := state.Move(1, 0)
+    fmt.Println(state.Trump)
+    fmt.Println(ChainString(act),val)
+    fmt.Println(HandString(state.Hands[0]))
+    fmt.Println(HandString(state.Hands[1]))
+}*/
+
+func TestSmallEndgame(t *testing.T) {
+    game := InitGame(0, "Human")
+    mem := InitMemory(2)
+    state := InitGameState(game)
+    for _,c := range state.Hands[0] {
+        c.Rank = "?"
+        c.Suit = "?"
+    }
+    mem.Discard = game.Deck
+    game.Deck = make([]*Card,0) //game.Deck[:1]
+    state.DeckSize = 0
+    state.Defender = 0
+    mem.SetKnownCards(state, 1, 0)
+    state.Hands[0] = state.Hands[0][:6]
+    state.Hands[1] = state.Hands[1][:6]
     act,val := state.Move(1, 0)
     fmt.Println(state.Trump)
     fmt.Println(ChainString(act),val)
