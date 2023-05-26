@@ -132,22 +132,26 @@ import (
 
 func TestSmallEndgame(t *testing.T) {
     game := InitGame(0, "Human")
+    /*for i:=0; i<6; i++ {
+        game.Players[0].Hand = append(game.Players[0].Hand, game.Deck[len(game.Deck)-1])
+        game.Deck = game.Deck[:len(game.Deck)-1]
+    }*/
+    fmt.Println(len(game.Players[0].Hand))
     mem := InitMemory(2)
     state := InitGameState(game)
-    for _,c := range state.Hands[0] {
-        c.Rank = "?"
-        c.Suit = "?"
+    for i,_ := range state.Hands[0] {
+        state.Hands[0][i] = 36
     }
     mem.Discard = game.Deck
     game.Deck = make([]*Card,0) //game.Deck[:1]
     state.DeckSize = 0
     state.Defender = 0
     mem.SetKnownCards(state, 1, 0)
-    state.Hands[0] = state.Hands[0][:6]
-    state.Hands[1] = state.Hands[1][:6]
-    act,val := state.Move(1, 0)
-    fmt.Println(state.Trump)
+    state.Hands[0] = state.Hands[0][:4]
+    state.Hands[1] = state.Hands[1][:4]
+    act,val := state.Move(1, 0, -1)
+    fmt.Println(FastCardToCard(state.Trump).ToStr())
     fmt.Println(ChainString(act),val)
-    fmt.Println(HandString(state.Hands[0]))
-    fmt.Println(HandString(state.Hands[1]))
+    fmt.Println(FastHandString(state.Hands[0]))
+    fmt.Println(FastHandString(state.Hands[1]))
 }

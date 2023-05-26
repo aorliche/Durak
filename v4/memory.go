@@ -31,12 +31,17 @@ func (mem *Memory) SetSizes(players []*Player) {
 
 func (mem *Memory) SetKnownCards(state *GameState, me int, opp int) {
     if state.DeckSize <= 1 {
-        state.Hands[opp] = mem.GuessFinalCards(state, me)
+        hand := mem.GuessFinalCards(state, me)
+        fastHand := make([]int, len(hand))
+        for i,c := range hand {
+            fastHand[i] = c.ToFastCard()
+        }
+        state.Hands[opp] = fastHand
     } else {
         for i,mc := range mem.Hands[opp] {
-            c := state.Hands[opp][i] 
-            c.Rank = mc.Rank
-            c.Suit = mc.Suit
+            state.Hands[opp][i] = mc.ToFastCard()
+            /*c.Rank = mc.Rank
+            c.Suit = mc.Suit*/
         }
     }
 }
@@ -45,6 +50,7 @@ func (mem *Memory) GuessFinalCards(state *GameState, me int) []*Card {
     cards := InitDeck()
     notit := make([]bool, len(cards))
     oppCards := make([]*Card, 0)
+    trump := FastCardToCard(state.Trump)
     for i,c := range cards {
         for _,mc := range mem.Discard {
             if c.Rank == mc.Rank && c.Suit == mc.Suit {
@@ -53,13 +59,14 @@ func (mem *Memory) GuessFinalCards(state *GameState, me int) []*Card {
             }
         }
         for _,mc := range state.Hands[me] {
-            if c.Rank == mc.Rank && c.Suit == mc.Suit {
+            mc2 := FastCardToCard(mc)
+            if c.Rank == mc2.Rank && c.Suit == mc2.Suit {
                 notit[i] = true
                 break
             }
         }
         if state.DeckSize == 1 {
-            if c.Rank == state.TrumpRank && c.Suit == state.Trump {
+            if c.Rank == trump.Rank && c.Suit == trump.Suit {
                 notit[i] = true
             }
         }

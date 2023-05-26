@@ -99,6 +99,19 @@ func (game *Game) AttackerActions() []*Action {
     return res
 }
 
+func (board *Board) ReverseRank() string {
+    if len(board.Plays) == 0 || len(NotNil(board.Covers)) > 0 {
+        return ""
+    }
+    r := board.Plays[0].Rank
+    for _,c := range Cat(board.Plays, NotNil(board.Covers)) {
+        if c.Rank != r {
+            return ""
+        }
+    }
+    return r
+}
+
 func (game *Game) DefenderActions() []*Action {
     res := make([]*Action, 0)
     if game.PickingUp {

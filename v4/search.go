@@ -4,11 +4,15 @@ import (
     "encoding/json"
     //"fmt"
     "math"
-    clone "github.com/huandu/go-clone"
+    //clone "github.com/huandu/go-clone"
 )
 
-func ChainString(chain []*Action) string {
-    jsn, _ := json.Marshal(chain) 
+func ChainString(chain []*FastAction) string {
+    cc := make([]*Action, len(chain))
+    for i,a := range chain {
+        cc[i] = a.ToAction()
+    }
+    jsn, _ := json.Marshal(cc) 
     return string(jsn) 
 }
 
@@ -17,139 +21,283 @@ func HandString(h []*Card) string {
     return string(jsn)
 }
 
+func FastHandString(h []int) string {
+    hh := make([]*Card, len(h))
+    for i,c := range h {
+        hh[i] = &Card{Rank: ranks[c%9], Suit: suits[c/9]}
+    }
+    return HandString(hh)
+}
+
 func (a *Action) String() string {
     jsn, _ := json.Marshal(a)
     return string(jsn)
 }
 
-func (b *Board) Size() int {
-    return len(b.Cards()) 
-}
-
-func (b *Board) Cards() []*Card {
-    return Cat(b.Plays, NotNil(b.Covers)) 
-}
-
-func (b *Board) ReverseRank() string {
-    if len(b.Plays) == 0 || len(NotNil(b.Covers)) > 0 {
-        return ""
+func (c *Card) ToFastCard() int {
+    if c == nil {
+        return -1
     }
-    r := b.Plays[0].Rank
-    for _,c := range b.Cards() {
-        if c.Rank != r {
-            return ""
+    if c.Rank == "?" || c.Suit == "?" {
+        return 36
+    }
+    return IndexOf(ranks, c.Rank) + 9*IndexOf(suits, c.Suit)
+}
+
+func FastCardToCard(c int) *Card {
+    if c == -1 {
+        return nil
+    }
+    if c == 36 {
+        return &Card{Rank: "?", Suit: "?"}
+    }
+    return &Card{Rank: ranks[c%9], Suit: suits[c/9]}
+}
+
+func (a *FastAction) ToAction() *Action {
+    if a == nil {
+        return nil
+    }
+    aa := &Action{
+        PlayerIdx: a.PlayerIdx, 
+        Verb: verbs[a.Verb], 
+        Card: FastCardToCard(a.Card),
+        Cover: FastCardToCard(a.Cover),
+    }
+    return aa
+}
+
+func (a *FastAction) String() string {
+    return a.ToAction().String()
+}
+
+var AttackV = 0
+var DefendV = 1
+var PassV = 2
+var ReverseV = 3
+var PickupV = 4
+var DeferV = 5
+var verbs = []string{"Attack", "Defend", "Pass", "Reverse", "Pickup", "Defer"}
+
+type FastAction struct {
+    PlayerIdx int
+    Verb int 
+    Card int
+    Cover int
+}
+
+func (state *GameState) BoardSize() int {
+    return len(state.CardsOnBoard()) 
+}
+
+func (state *GameState) CardsOnBoard() []int {
+    return Cat(state.Plays, FastNotNil(state.Covers)) 
+}
+
+func (state *GameState) ReverseRank() int {
+    if len(state.Plays) == 0 || FastNumNotNil(state.Covers) > 0 {
+        return -1
+    }
+    r := state.Plays[0]%9
+    for _,c := range state.CardsOnBoard() {
+        if c%9 != r {
+            return -1
         }
     }
     return r
 }
 
+func FastBeats(card1 int, card2 int, trumpSuit int) bool {
+    if card1/9 == trumpSuit && card1/9 != card2/9 {
+        return true
+    }
+    return card1%9 > card2%9 && card1/9 == card2/9
+}
+
+func FastNotNil(sl []int) []int {
+    res := make([]int, 0)
+    for _,s := range sl {
+        if s != -1 {
+            res = append(res, s)
+        } 
+    }
+    return res
+}
+
+func FastNumNotNil(sl []int) int {
+    n := 0
+    for _,s := range sl {
+        if s != -1 {
+            n++
+        } 
+    }
+    return n
+}
+
 type GameState struct {
     Defender int
     PickingUp bool
-    Trump string
-    TrumpRank string
+    Trump int           // Card
     DeckSize int
-    Board *Board
-    Hands [][]*Card
+    Plays []int
+    Covers []int
+    Hands [][]int
     Defering bool
 }
 
-func (state *GameState) Clone() *GameState {
-    return clone.Clone(state).(*GameState) 
+func copyIntSlice(sl []int) []int {
+    res := make([]int, len(sl))
+    copy(res, sl)
+    return res
 }
 
+func (state *GameState) Clone() *GameState {
+    pCopy := make([]int, len(state.Plays))
+    cCopy := make([]int, len(state.Covers))
+    hCopy := make([][]int, len(state.Hands))
+    hCopy[0] = make([]int, len(state.Hands[0]))
+    hCopy[1] = make([]int, len(state.Hands[1]))
+    copy(pCopy, state.Plays)
+    copy(cCopy, state.Covers)
+    copy(hCopy[0], state.Hands[0])
+    copy(hCopy[1], state.Hands[1])
+    return &GameState{
+        Defender: state.Defender,
+        PickingUp: state.PickingUp,
+        Trump: state.Trump,
+        DeckSize: state.DeckSize,
+        Plays: pCopy,
+        Covers: cCopy,
+        Hands: hCopy, 
+        Defering: state.Defering,
+    }
+}
+
+/*func (state *GameState) Clone() *GameState {
+    return clone.Clone(state).(*GameState) 
+}*/
+
 func InitGameState(game *Game) *GameState {
-    hands := make([][]*Card, len(game.Players))
+    pCopy := make([]int, len(game.Board.Plays))
+    cCopy := make([]int, len(game.Board.Covers))
+    hCopy := make([][]int, len(game.Players))
+    hCopy[0] = make([]int, len(game.Players[0].Hand))
+    hCopy[1] = make([]int, len(game.Players[1].Hand))
     for i,p := range game.Players {
-        hands[i] = clone.Clone(p.Hand).([]*Card)
+        for j,c := range p.Hand {
+            hCopy[i][j] = c.ToFastCard()
+        }
+    }
+    for i,p := range game.Board.Plays {
+        pCopy[i] = p.ToFastCard()
+    }
+    for i,c := range game.Board.Covers {
+        cCopy[i] = c.ToFastCard()
     }
     return &GameState{
         Defender: game.Defender,
         PickingUp: game.PickingUp,
-        Trump: game.Trump.Suit,
-        TrumpRank: game.Trump.Rank,
+        Trump: game.Trump.ToFastCard(),
         DeckSize: len(game.Deck),
-        Board: clone.Clone(game.Board).(*Board),
-        Hands: hands,
+        Plays: pCopy,
+        Covers: cCopy,
+        Hands: hCopy, 
+        Defering: false,
     }
 }
 
-func (state *GameState) AttackerActions(pIdx int) []*Action {
-    res := make([]*Action, 0)
+func (state *GameState) AttackerActions(pIdx int) []*FastAction {
+    res := make([]*FastAction, 0)
     if state.Defering {
         return res
     }
-    if state.Board.Size() == 0 {
+    if state.BoardSize() == 0 {
         for _,card := range state.Hands[pIdx] {
-            act := Action{PlayerIdx: pIdx, Verb: "Attack", Card: card}
+            act := FastAction{PlayerIdx: pIdx, Verb: AttackV, Card: card, Cover: -1}
             res = append(res, &act)
         }
     } else {
-        for _,bc := range state.Board.Cards() {
-            for _,pc := range state.Hands[pIdx] {
-                // Unique actions
-                if bc != nil && (bc.Rank == pc.Rank || pc.Rank == "?") && 
-                        IndexOfFn(res, func(act *Action) bool {return act.Card == pc}) == -1 {
-                    act := Action{PlayerIdx: pIdx, Verb: "Attack", Card: pc}
+        for _,pc := range state.Hands[pIdx] {
+            for _,bc := range state.CardsOnBoard() {
+                if bc%9 == pc%9 || pc == 36 {
+                    // Unique actions
+                    act := FastAction{PlayerIdx: pIdx, Verb: AttackV, Card: pc, Cover: -1}
                     res = append(res, &act)
+                    break
                 }
             }
         }
     }
-    if state.PickingUp || (state.Board.Covered() == len(state.Board.Plays) && len(state.Board.Plays) > 0) {
-        act := Action{PlayerIdx: pIdx, Verb: "Pass"}
+    if state.PickingUp || (FastNumNotNil(state.Covers) == len(state.Plays) && len(state.Plays) > 0) {
+        act := FastAction{PlayerIdx: pIdx, Verb: PassV, Card: -1, Cover: -1}
         res = append(res, &act)
     }
     // For AI to not throw trumps away
-    if len(state.Board.Plays) > len(NotNil(state.Board.Covers)) {
-        act := Action{PlayerIdx: pIdx, Verb: "Defer"}
+    if len(state.Plays) > FastNumNotNil(state.Covers) {
+        act := FastAction{PlayerIdx: pIdx, Verb: DeferV, Card: -1, Cover: -1}
         res = append(res, &act)
     }
     return res
 }
 
-func (state *GameState) DefenderActions(pIdx int) []*Action {
-    res := make([]*Action, 0)
+func (state *GameState) DefenderActions(pIdx int) []*FastAction {
+    res := make([]*FastAction, 0)
     if state.PickingUp {
         return res
     }
-    revRank := state.Board.ReverseRank()
-    if revRank != "" {
+    revRank := state.ReverseRank()
+    if revRank != -1 {
         for _,pc := range state.Hands[pIdx] {
-            if pc.Rank == revRank {
-                act := Action{PlayerIdx: pIdx, Verb: "Reverse", Card: pc}
+            if pc%9 == revRank {
+                act := FastAction{PlayerIdx: pIdx, Verb: ReverseV, Card: pc, Cover: -1}
                 res = append(res, &act)
             }
         }
     }
-    for i,bp := range state.Board.Plays {
-        if state.Board.Covers[i] != nil {
+    for i,bp := range state.Plays {
+        if state.Covers[i] != -1 {
             continue
         }
         for _,pc := range state.Hands[pIdx] {
-            if pc.Beats(bp, state.Trump) || pc.Rank == "?" {
-                act := Action{PlayerIdx: pIdx, Verb: "Defend", Card: pc, Cover: bp}
+            if FastBeats(pc, bp, state.Trump/9) || pc == 36 {
+                act := FastAction{PlayerIdx: pIdx, Verb: DefendV, Card: pc, Cover: bp}
                 res = append(res, &act)
             }
         }
     }
     // Get non-nil covers
-    if len(state.Board.Plays) > 0 && state.Board.Covered() < len(state.Board.Plays) {
-        act := Action{PlayerIdx: pIdx, Verb: "Pickup"}
+    if len(state.Plays) > 0 && FastNumNotNil(state.Covers) < len(state.Plays) {
+        act := FastAction{PlayerIdx: pIdx, Verb: PickupV, Card: -1, Cover: -1}
         res = append(res, &act)
     }
     return res
 }
 
-func StartChain(act *Action) []*Action {
-    return []*Action{act}
+func StartChain(act *FastAction) []*FastAction {
+    return []*FastAction{act}
 }
 
-func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
-    if depth > 8 {
+func (state *GameState) DepthLimit() int {
+    nCards := len(Cat(state.Hands[0], state.Hands[1]))
+    if nCards > 18 {
+        return 6
+    } else if nCards > 12 {
+        return 7
+    } else if nCards > 10 {
+        return 8 
+    } else {
+        return 16
+    }
+}
+
+func (state *GameState) Move(me int, depth int, dlim int) ([]*FastAction,float64) {
+    if depth == 0 {
+        dlim = state.DepthLimit()
+    }
+    if depth > dlim {
         return StartChain(nil), state.EvalMystery(me)
     }
-    var acts []*Action
+    var acts []*FastAction
     if me == state.Defender {
         acts = state.DefenderActions(me)
     } else {
@@ -160,11 +308,11 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         return nil, 0 
     }
     evals := make([]float64, 2*len(acts))
-    chains := make([][]*Action, 2*len(acts))
+    chains := make([][]*FastAction, 2*len(acts))
     endGame := state.DeckSize <= 1
     didMystery := false
     for i,act := range acts {
-        if act.Verb == "Defer" {
+        if act.Verb == DeferV {
             // If end of game, treat as pass and keep going
             if endGame {
                 state.Defering = true
@@ -180,16 +328,16 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
             return StartChain(act), 1000
         }
         // End hand
-        if act.Verb == "Pass" {
+        if act.Verb == PassV {
             if endGame {
             // Go to end of game
                 if state.PickingUp {
-                    c,r := s.Move(me, depth+1)
+                    c,r := s.Move(me, depth+1, dlim)
                     evals[2*i] = r
                     chains[2*i] = append(c, act)
                     chains[2*i+1] = nil
                 } else {
-                    c,r := s.Move(1-me, depth+1)
+                    c,r := s.Move(1-me, depth+1, dlim)
                     evals[2*i+1] = r
                     chains[2*i+1] = append(c, act)
                     chains[2*i] = nil
@@ -202,7 +350,7 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         // Mystery card
         // Only check one mystery card
         // TODO incorporate possibility of reverse
-        if !didMystery && act.Card != nil && act.Card.Rank == "?" {
+        if !didMystery && act.Card == 36 {
             //return StartChain(act), s.EvalMystery(me)
             chains[2*i] = StartChain(act)
             evals[2*i] = s.EvalMystery(me)
@@ -211,23 +359,23 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
         // Pickup - Opponent's move will determine evaluation
         // Penalize high hand count
         // Penalize taking cards with zero deck size (end of game)
-        } else if act.Verb == "Pickup" {
+        } else if act.Verb == PickupV {
             chains[2*i] = nil
-            c,r := s.Move(1-me, depth+1)
+            c,r := s.Move(1-me, depth+1, dlim)
             evals[2*i+1] = s.PickupPenalty(me) + r
             chains[2*i+1] = Ternary(c == nil, nil, append(c, act))
         // Regular known move
         } else {
-            c,r := s.Move(me, depth+1)
+            c,r := s.Move(me, depth+1, dlim)
             evals[2*i] = r
             chains[2*i] = Ternary(c == nil, nil, append(c, act))
-            c,r = s.Move(1-me, depth+1)
+            c,r = s.Move(1-me, depth+1, dlim)
             evals[2*i+1] = r
             chains[2*i+1] = Ternary(c == nil, nil, append(c, act))
         }
     }
     // Find likely action
-    var bestChain []*Action
+    var bestChain []*FastAction
     best := math.Inf(-1)
     for i,_ := range acts {
         if chains[2*i] == nil && chains[2*i+1] == nil {
@@ -262,36 +410,36 @@ func (state *GameState) Move(me int, depth int) ([]*Action,float64) {
 }
 
 // EndGame means we need to clear the board
-func (state *GameState) TakeAction(act *Action, endGame bool) {
+func (state *GameState) TakeAction(act *FastAction, endGame bool) {
     if state.Defering && act.PlayerIdx == state.Defender {
         state.Defering = false
     }
     switch act.Verb {
-        case "Attack": {
+        case AttackV: {
             state.Hands[act.PlayerIdx] = Remove(state.Hands[act.PlayerIdx], act.Card)
-            state.Board.Plays = append(state.Board.Plays, act.Card)
-            state.Board.Covers = append(state.Board.Covers, nil)
+            state.Plays = append(state.Plays, act.Card)
+            state.Covers = append(state.Covers, -1)
         } 
-        case "Defend": {
+        case DefendV: {
             state.Hands[act.PlayerIdx] = Remove(state.Hands[act.PlayerIdx], act.Card)
-            idx := IndexOf(state.Board.Plays, act.Cover)
-            state.Board.Covers[idx] = act.Card
+            idx := IndexOf(state.Plays, act.Cover)
+            state.Covers[idx] = act.Card
         }
-        case "Pickup": {
+        case PickupV: {
             state.PickingUp = true
         }
-        case "Reverse": {
+        case ReverseV: {
             state.Hands[act.PlayerIdx] = Remove(state.Hands[act.PlayerIdx], act.Card)
-            state.Board.Plays = append(state.Board.Plays, act.Card)
-            state.Board.Covers = append(state.Board.Covers, nil)
+            state.Plays = append(state.Plays, act.Card)
+            state.Covers = append(state.Covers, -1)
             state.Defender = 1-state.Defender
         }
-        case "Pass": {
+        case PassV: {
             // Skip, handled in Move code
             // ...unless it's the endgame
             if endGame {
-                state.Board.Plays = make([]*Card, 0)
-                state.Board.Covers = make([]*Card, 0)
+                state.Plays = make([]int, 0)
+                state.Covers = make([]int, 0)
                 if !state.PickingUp {
                     state.Defender = 1-state.Defender
                 }
@@ -301,12 +449,12 @@ func (state *GameState) TakeAction(act *Action, endGame bool) {
     }
 }
 
-func (state *GameState) SumValue(cards []*Card) float64 {
+func (state *GameState) SumValue(cards []int) float64 {
     res := float64(0)
     for _,c := range cards {
-        if c != nil && c.Rank != "?" {
-            res += float64(IndexOf(ranks, c.Rank) - 4)
-            if c.Suit == state.Trump {
+        if c != -1 && c != 36 {
+            res += float64(c%9 - 4)
+            if c/9 == state.Trump/9 {
                 res += 7
             }
         }
@@ -318,7 +466,7 @@ func (state *GameState) SumValue(cards []*Card) float64 {
 func (state *GameState) EvalPass(me int) float64 {
     var val float64
     if state.PickingUp {
-        val = state.SumValue(Cat(state.Board.Plays, state.Board.Covers)) - 4
+        val = state.SumValue(Cat(state.Plays, state.Covers)) - 4
         if me != state.Defender {
             val *= -1
         }
@@ -330,9 +478,9 @@ func (state *GameState) EvalPass(me int) float64 {
 
 func (state *GameState) EvalMystery(me int) float64 {
     if me == state.Defender {
-        return state.SumValue(state.Board.Plays) - state.SumValue(state.Board.Covers)
+        return state.SumValue(state.Plays) - state.SumValue(state.Covers)
     } else {
-        return state.SumValue(state.Board.Covers) - state.SumValue(state.Board.Plays)
+        return state.SumValue(state.Covers) - state.SumValue(state.Plays)
     }
 }
 
@@ -344,6 +492,6 @@ func (state *GameState) PickupPenalty(me int) float64 {
     if len(state.Hands[me]) > 6 {
         val += len(state.Hands[me])-6
     }
-    val += len(NotNil(Cat(state.Board.Plays, state.Board.Covers)))
+    val += FastNumNotNil(Cat(state.Plays, state.Covers))
     return float64(val)
 }
