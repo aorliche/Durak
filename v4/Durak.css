@@ -1,6 +1,16 @@
 #durak-canvas {
     border: 1px solid black;
 }
+#top {
+    position: relative;
+    font-size: 18px;
+    color: red;
+    font-weight: bold;
+    height: 0px;
+    top: 10px;
+    left: 10px;
+    z-index: 1;
+}
 #bottom {
     position: relative;
     font-size: 18px;

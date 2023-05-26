@@ -108,6 +108,12 @@ class Board {
         this.covers.forEach(c => c ? c.draw(ctx) : null); 
     }
 
+    hasUncovered() {
+        let n = this.plays.length;
+        this.covers.forEach(c => c ? n-- : null);
+        return n > 0;
+    }
+
     init(obj) {
         this.plays = obj.Plays.map(c => {
             return new Card(cardIndexFromObj(c));
@@ -437,6 +443,11 @@ class Game {
         });
         this.passb.disabled = !pass;
         this.pickupb.disabled = !pickup;
+        if (pass && this.board.hasUncovered()) {
+            $('#pickingup').style.display = 'block';
+        } else {
+            $('#pickingup').style.display = 'none';
+        }
     }
 }
 
