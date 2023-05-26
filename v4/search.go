@@ -280,13 +280,15 @@ func StartChain(act *FastAction) []*FastAction {
 func (state *GameState) DepthLimit() int {
     nCards := len(Cat(state.Hands[0], state.Hands[1]))
     if nCards > 18 {
-        return 6
+        return 5
     } else if nCards > 12 {
-        return 7
+        return 6
     } else if nCards > 10 {
-        return 8 
+        return 7
+    } else if nCards > 8{
+        return 8
     } else {
-        return 16
+        return 12
     }
 }
 
