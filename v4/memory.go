@@ -58,6 +58,13 @@ func (mem *Memory) GuessFinalCards(state *GameState, me int) []*Card {
                 break
             }
         }
+        for _,mc := range state.CardsOnBoard() {
+            mc2 := FastCardToCard(mc)
+            if c.Rank == mc2.Rank && c.Suit == mc2.Suit {
+                notit[i] = true
+                break
+            }
+        }
         for _,mc := range state.Hands[me] {
             mc2 := FastCardToCard(mc)
             if c.Rank == mc2.Rank && c.Suit == mc2.Suit {

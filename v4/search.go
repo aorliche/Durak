@@ -4,6 +4,7 @@ import (
     "encoding/json"
     //"fmt"
     "math"
+    "time"
     //clone "github.com/huandu/go-clone"
 )
 
@@ -143,6 +144,7 @@ type GameState struct {
     Covers []int
     Hands [][]int
     Defering bool
+    Start *time.Time
 }
 
 func copyIntSlice(sl []int) []int {
@@ -170,6 +172,7 @@ func (state *GameState) Clone() *GameState {
         Covers: cCopy,
         Hands: hCopy, 
         Defering: state.Defering,
+        Start: state.Start,
     }
 }
 
@@ -277,6 +280,9 @@ func StartChain(act *FastAction) []*FastAction {
     return []*FastAction{act}
 }
 
+// These are sometimes not representative of how long it takes to eval
+// That's why we also measure time
+// TODO iterative deepening
 func (state *GameState) DepthLimit() int {
     nCards := len(Cat(state.Hands[0], state.Hands[1]))
     if nCards > 18 {
@@ -295,8 +301,15 @@ func (state *GameState) DepthLimit() int {
 func (state *GameState) Move(me int, depth int, dlim int) ([]*FastAction,float64) {
     if depth == 0 {
         dlim = state.DepthLimit()
+        start := time.Now()
+        state.Start = &start
     }
-    if depth > dlim {
+    dlimAdjusted := dlim
+    tDiff := time.Now().Sub(*state.Start)
+    if tDiff.Seconds() > 2 {
+        dlimAdjusted -= 1
+    }
+    if depth > dlimAdjusted {
         return StartChain(nil), state.EvalMystery(me)
     }
     var acts []*FastAction
@@ -457,7 +470,7 @@ func (state *GameState) SumValue(cards []int) float64 {
         if c != -1 && c != 36 {
             res += float64(c%9 - 4)
             if c/9 == state.Trump/9 {
-                res += 7
+                res += 9
             }
         }
     }
@@ -488,12 +501,12 @@ func (state *GameState) EvalMystery(me int) float64 {
 
 func (state *GameState) PickupPenalty(me int) float64 {
     val := 0
-    if state.DeckSize < 10 {
-        val += 10 - state.DeckSize
+    if state.DeckSize < 6 {
+        val += 6 - state.DeckSize
     }
     if len(state.Hands[me]) > 6 {
         val += len(state.Hands[me])-6
     }
-    val += FastNumNotNil(Cat(state.Plays, state.Covers))
+    //val += FastNumNotNil(Cat(state.Plays, state.Covers))
     return float64(val)
 }
