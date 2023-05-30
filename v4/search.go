@@ -507,6 +507,6 @@ func (state *GameState) PickupPenalty(me int) float64 {
     if len(state.Hands[me]) > 6 {
         val += len(state.Hands[me])-6
     }
-    //val += FastNumNotNil(Cat(state.Plays, state.Covers))
+    val += FastNumNotNil(Cat(state.Plays, state.Covers))
     return float64(val)
 }
