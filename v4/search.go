@@ -72,12 +72,17 @@ func (a *FastAction) String() string {
     return a.ToAction().String()
 }
 
-var AttackV = 0
-var DefendV = 1
-var PassV = 2
-var ReverseV = 3
-var PickupV = 4
-var DeferV = 5
+type Verb int
+
+const (
+    AttackV int = iota
+    DefendV
+    PassV
+    ReverseV
+    PickupV
+    DeferV
+)
+
 var verbs = []string{"Attack", "Defend", "Pass", "Reverse", "Pickup", "Defer"}
 
 type FastAction struct {
