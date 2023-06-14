@@ -113,7 +113,10 @@ func Info(w http.ResponseWriter, req *http.Request) {
         jsn,_ = json.Marshal(upd)
         game.Recording = append(game.Recording, fmt.Sprintf("\"%s\"", game.Versus))
         game.Recording = append(game.Recording, string(jsn))
-	    WriteGameIfWinner(w, req, game)
+    }
+    // Computers don't get an update after TakeAction
+    if game.CheckWinner() != -1 && game.Versus != "Human" {
+        WriteGameIfWinner(w, req, game)
     }
     game.mutex.Unlock()
 }
