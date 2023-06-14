@@ -69,6 +69,17 @@ func New(w http.ResponseWriter, req *http.Request) {
     Info(w, req)
 }
 
+func WriteGameIfWinner(w http.ResponseWriter, req *http.Request, game *Game) {
+    if game.CheckWinner() != -1 {
+        str := fmt.Sprintf("[\n\t%s\n]", strings.Join(game.Recording, ",\n\t"))
+         ts := time.Now().Unix()
+         err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), []byte(str), 0644)
+         if err != nil {
+             fmt.Println("Error writing game file")
+         }
+    }
+}
+
 func Info(w http.ResponseWriter, req *http.Request) {
     game := GetGame(w, req)
     if game == nil {
@@ -102,6 +113,7 @@ func Info(w http.ResponseWriter, req *http.Request) {
         jsn,_ = json.Marshal(upd)
         game.Recording = append(game.Recording, fmt.Sprintf("\"%s\"", game.Versus))
         game.Recording = append(game.Recording, string(jsn))
+	    WriteGameIfWinner(w, req, game)
     }
     game.mutex.Unlock()
 }
@@ -127,17 +139,8 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     if upd != nil {
         game.Recording = append(game.Recording, string(actJsn))
         game.Recording = append(game.Recording, string(updJsn))
-        if game.CheckWinner() != -1 {
-            //jsn,_ = json.Marshal(game.Recording)
-            str := fmt.Sprintf("[\n\t%s\n]", strings.Join(game.Recording, ",\n\t"))
-            ts := time.Now().Unix()
-            err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), []byte(str), 0644)
-            if err != nil {
-                fmt.Println("Error writing game file")
-            }
-            //fmt.Println(string(jsn))
-        }
-    } 
+	    WriteGameIfWinner(w, req, game)
+    }
     game.mutex.Unlock()
 }
 

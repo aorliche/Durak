@@ -24,7 +24,7 @@ func MakeRandomPlay(game *Game) {
             if upd != nil {
                 act = a
                 break
-            } 
+            }
         }
     }
     if !found {

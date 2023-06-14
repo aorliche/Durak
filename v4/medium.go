@@ -15,10 +15,6 @@ func MakeBestPlay(game *Game) {
     state := InitGameState(game)
     for i,_ := range state.Hands[0] {
         state.Hands[0][i] = 36
-        //c := state.Hands[0][i] 
-        //c = 36
-        /*c.Rank = "?"
-        c.Suit = "?"*/
     }
     game.memory.SetKnownCards(state, 1, 0)
     chain,val := state.Move(1, 0, -1)
@@ -51,6 +47,6 @@ func MediumLoop(game *Game) {
             break
         }
         time.Sleep(time.Second)
-        MakeBestPlay(game)  
+        MakeBestPlay(game)
     }
 }
