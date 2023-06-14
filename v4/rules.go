@@ -309,7 +309,7 @@ func InitGame(key int, comp string) *Game {
         Players: []*Player{InitPlayer(0), InitPlayer(1)}, 
         Defender: 1, 
         PickingUp: false,
-        Recording: make([]*Record, 0),
+        Recording: make([]string, 0),
         Versus: comp, 
         joined: false,
         memory: InitMemory(2)}

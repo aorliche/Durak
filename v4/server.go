@@ -6,6 +6,7 @@ import (
     "os"
     "net/http"
     "strconv"
+    "strings"
     "time"
 )
 
@@ -98,7 +99,9 @@ func Info(w http.ResponseWriter, req *http.Request) {
     if len(game.Recording) == 0 {
         // Unmask player cards
         upd.Players = game.Players
-        game.Recording = append(game.Recording, &Record{Update: &upd})
+        jsn,_ = json.Marshal(upd)
+        game.Recording = append(game.Recording, fmt.Sprintf("\"%s\"", game.Versus))
+        game.Recording = append(game.Recording, string(jsn))
     }
     game.mutex.Unlock()
 }
@@ -115,18 +118,20 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
         game.mutex.Unlock()
         return
     }
-    jsn,_ := json.Marshal(act)
+    actJsn,_ := json.Marshal(act)
     //fmt.Printf("%s\n", jsn)
     upd := game.TakeAction(&act) 
-    jsn,_ = json.Marshal(upd != nil)
+    jsn,_ := json.Marshal(upd != nil)
     fmt.Fprintf(w, "%s\n", jsn)
+    updJsn,_ := json.Marshal(upd)
     if upd != nil {
-        game.Recording = append(game.Recording, &Record{Action: &act})
-        game.Recording = append(game.Recording, &Record{Update: upd})
+        game.Recording = append(game.Recording, string(actJsn))
+        game.Recording = append(game.Recording, string(updJsn))
         if game.CheckWinner() != -1 {
-            jsn,_ = json.Marshal(game.Recording)
+            //jsn,_ = json.Marshal(game.Recording)
+            str := fmt.Sprintf("[\n\t%s\n]", strings.Join(game.Recording, ",\n\t"))
             ts := time.Now().Unix()
-            err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
+            err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), []byte(str), 0644)
             if err != nil {
                 fmt.Println("Error writing game file")
             }

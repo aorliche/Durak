@@ -19,16 +19,11 @@ type Game struct {
     Defender int
     Turn int
     PickingUp bool
-    Recording []*Record
+    Recording []string
     Versus string
     joined bool
     mutex sync.Mutex
     memory *Memory
-}
-
-type Record struct {
-    Action *Action
-    Update *Update
 }
 
 type Update struct {

@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "time" 
 )
@@ -33,8 +34,10 @@ func MakeBestPlay(game *Game) {
     }
     upd := game.TakeAction(act.ToAction())
     if upd != nil {
-        game.Recording = append(game.Recording, &Record{Action: act.ToAction()})
-        game.Recording = append(game.Recording, &Record{Update: upd})
+        actJsn,_ := json.Marshal(act.ToAction())
+        updJsn,_ := json.Marshal(upd)
+        game.Recording = append(game.Recording, string(actJsn))
+        game.Recording = append(game.Recording, string(updJsn))
     } else {
         fmt.Println(act)
         panic("Error in Best AI B")

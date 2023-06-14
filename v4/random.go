@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "time"
 ) 
@@ -36,8 +37,10 @@ func MakeRandomPlay(game *Game) {
         }
     }
     if upd != nil {
-        game.Recording = append(game.Recording, &Record{Action: act})
-        game.Recording = append(game.Recording, &Record{Update: upd})
+        actJsn,_ := json.Marshal(act)
+        updJsn,_ := json.Marshal(upd)
+        game.Recording = append(game.Recording, string(actJsn))
+        game.Recording = append(game.Recording, string(updJsn))
     } else if found {
         fmt.Println("Error in Random AI B")
     }
