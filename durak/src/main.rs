@@ -1,41 +1,38 @@
-mod durak;
+mod rules;
+mod search;
 
 fn random_game() {
-    use rand::{thread_rng, seq::IteratorRandom};
-    let mut rng = thread_rng();
-
     let mut n = 0;
-    let mut g = durak::Game::new(0, "computer".to_string());
+    let mut g = rules::Game::new(0, "computer".to_string());
     while !g.is_over() {
         n += 1;
-        if n > 100 {
+        if n > 4 {
             break;
         }
-        let p0a = g.state.player_actions(0);
-        let p1a = g.state.player_actions(1);
-        let a = p0a.iter().chain(p1a.iter()).choose(&mut rng).unwrap();
+        let a = g.state.random_action();
         g.take_action(&a);
+        println!("{}", serde_json::to_string(&a).unwrap());
         println!("{}", serde_json::to_string(&g).unwrap());
+        println!("{}", g.state.eval(&g.state, 0));
     }
-
 }
 
 fn main() {
-    /*let c = durak::card_from_suit_rank(1,2);
+    /*let c = rules::card_from_suit_rank(1,2);
     println!("Hello, world!");
-    println!("{}", durak::card_to_string(c));
-    let a = durak::Action::new(0, durak::Verb::PickUp, 36, 36);
+    println!("{}", rules::card_to_string(c));
+    let a = rules::Action::new(0, rules::Verb::PickUp, 36, 36);
     let mut j = serde_json::to_string(&a).unwrap();
     println!("{}", j);
     let h = vec![Vec::new(), Vec::new()];
-    let gs = durak::GameState::new(c, h);
+    let gs = rules::GameState::new(c, h);
     j = serde_json::to_string(&gs).unwrap();
     println!("{}", j);
-    let d = durak::generate_deck();
+    let d = rules::generate_deck();
     for card in d {
-        println!("{}", durak::card_to_string(card));
+        println!("{}", rules::card_to_string(card));
     }
-    let mut g = durak::Game::new(0, "computer".to_string());
+    let mut g = rules::Game::new(0, "computer".to_string());
     j = serde_json::to_string(&g).unwrap();
     println!("{}", j);
     let mut acts = g.state.attacker_actions(0);

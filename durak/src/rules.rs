@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::{thread_rng, seq::IteratorRandom};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum Verb {
     Play = 1,
     Cover,
@@ -14,8 +14,8 @@ pub enum Verb {
     Defer,
 }
 
-type Card = usize;
-const UNK_CARD : Card = 36;
+pub type Card = usize;
+pub const UNK_CARD : Card = 36;
 
 pub fn new_card(card: usize) -> Card {
     card
@@ -91,7 +91,7 @@ pub fn remove_card(cards: &mut Vec<Card>, card: Card) -> bool {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct Action {
     pub player: usize,
     pub verb: Verb,
@@ -123,7 +123,7 @@ pub struct GameState {
     pub start: Option<time::Instant>,
 }
 
-pub fn num_not_nil(v: &Vec<Card>) -> usize {
+pub fn num_not_unk(v: &Vec<Card>) -> usize {
     v.iter().filter(|&x| *x != UNK_CARD).count()
 }
 
@@ -160,11 +160,11 @@ impl GameState {
                 }
             }
         }
-        if self.picking_up || (num_not_nil(&self.covers) == self.plays.len() && self.plays.len() > 0) {
+        if self.picking_up || (num_not_unk(&self.covers) == self.plays.len() && self.plays.len() > 0) {
             res.push(Action::new(pidx, Verb::Pass, UNK_CARD, UNK_CARD))
         }
         // For AI to not throw trumps away
-        if !self.picking_up && self.plays.len() > num_not_nil(&self.covers) {
+        if !self.picking_up && self.plays.len() > num_not_unk(&self.covers) {
             res.push(Action::new(pidx, Verb::Defer, UNK_CARD, UNK_CARD)) 
         }
         res
@@ -186,8 +186,8 @@ impl GameState {
         if self.picking_up {
             return res
         }
-        let revRank = self.reverse_rank();
-        match revRank {
+        let rev_rank = self.reverse_rank();
+        match rev_rank {
             Some(rank) => {
                 for &card in &self.hands[pidx] {
                     if card_rank(card) == rank {
@@ -199,7 +199,7 @@ impl GameState {
         }
         for i in 0..self.plays.len() {
             for &card in self.hands[pidx].iter() {
-                if beats(card, self.plays[i], self.trump) {
+                if self.covers[i] == UNK_CARD && beats(card, self.plays[i], self.trump) {
                     res.push(Action::new(pidx, Verb::Cover, card, self.plays[i]))
                 }
             }
@@ -216,8 +216,10 @@ impl GameState {
             self.attacker_actions(pidx)
         }
     }
+    pub fn random_action(&self) -> Action {
+        self.player_actions(0).iter().chain(self.player_actions(1).iter()).choose(&mut thread_rng()).unwrap().clone()
+    }
     pub fn take_action(&mut self, action: &Action) {
-        println!("Take Action {:?}", action);
         match action.verb {
             Verb::Play => {
                 self.plays.push(action.card);
@@ -240,7 +242,6 @@ impl GameState {
                 self.defering = false;
             },
             Verb::PickUp => {
-                println!("PickUp");
                 self.picking_up = true;
             },
             Verb::Pass => {
@@ -260,6 +261,18 @@ impl GameState {
                 self.defering = true;
             },
             _ => (),
+        }
+    }
+    pub fn clone(&self) -> GameState {
+        GameState {
+            defender: self.defender,
+            picking_up: self.picking_up,
+            trump: self.trump,
+            plays: self.plays.clone(),
+            covers: self.covers.clone(),
+            hands: vec![self.hands[0].clone(), self.hands[1].clone()],
+            defering: self.defering,
+            start: self.start,
         }
     }
 }
@@ -338,7 +351,7 @@ impl Game {
         }
     }
     pub fn deal(&mut self, player: usize) {
-        while self.deck.len() > 0 {
+        while self.deck.len() > 0 && self.state.hands[player].len() < 6 {
             self.state.hands[player].push(self.deck.pop().unwrap());
         }
         self.memory.sizes[player] = self.state.hands[player].len();
