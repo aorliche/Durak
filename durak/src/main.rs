@@ -4,6 +4,7 @@ mod search;
 fn random_game() {
     let mut n = 0;
     let mut g = rules::Game::new(0, "computer".to_string());
+    let orig_state = g.state.clone();
     while !g.is_over() {
         n += 1;
         if n > 4 {
@@ -13,7 +14,7 @@ fn random_game() {
         g.take_action(&a);
         println!("{}", serde_json::to_string(&a).unwrap());
         println!("{}", serde_json::to_string(&g).unwrap());
-        println!("{}", g.state.eval(&g.state, 0));
+        println!("{}", orig_state.eval(&g.state, 1));
     }
 }
 
