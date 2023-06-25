@@ -148,12 +148,17 @@ impl GameState {
            } 
         } else {
             for &card in &self.hands[pidx] {
+                // Allow play unknown card in search
+                if card == UNK_CARD {
+                    res.push(Action::new(pidx, Verb::Play, card, UNK_CARD));
+                    continue; 
+                }
                 for &board_card in self.plays.iter().chain(self.covers.iter()) {
                     if board_card == UNK_CARD {
                         continue;
                     }
-                    // Card equality with unknown card for AI search
-                    if card_rank(card) == card_rank(board_card) || card == UNK_CARD {
+                    // Play rank on board
+                    if card_rank(card) == card_rank(board_card) {
                         res.push(Action::new(pidx, Verb::Play, card, UNK_CARD));
                         break;
                     }
@@ -200,6 +205,10 @@ impl GameState {
         for i in 0..self.plays.len() {
             for &card in self.hands[pidx].iter() {
                 if self.covers[i] == UNK_CARD && beats(card, self.plays[i], self.trump) {
+                    res.push(Action::new(pidx, Verb::Cover, card, self.plays[i]))
+                }
+                // For AI search allow cover with unknown card
+                if card == UNK_CARD {
                     res.push(Action::new(pidx, Verb::Cover, card, self.plays[i]))
                 }
             }
