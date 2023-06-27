@@ -4,7 +4,7 @@ use serde_json::Value;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, seq::IteratorRandom};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum Verb {
     Play = 1,
     Cover,
@@ -84,7 +84,7 @@ pub fn remove_card(cards: &mut Vec<Card>, card: Card) -> bool {
     let idx = cards.iter().position(|x| *x == card);
     match idx {
         Some(i) => {
-            cards.remove(i);
+            cards.swap_remove(i);
             true
         },
         None => false,

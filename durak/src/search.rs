@@ -11,21 +11,22 @@ type Verb = rules::Verb;
 // Aka iterative crappening
 
 pub fn depth_limit(state: &GameState) -> usize {
-    let ncards = state.plays.len() + rules::num_not_unk(&state.covers);
+    let ncards = state.hands.iter().map(|x| x.len()).sum::<usize>();
     if ncards > 18 {
-        5
-    } else if ncards > 12 {
         6
-    } else if ncards > 10 {
-        7
-    } else if ncards > 8{
+    } else if ncards > 12 {
         8
-    } else {
+    } else if ncards > 10 {
+        10
+    } else if ncards > 8{
         12
+    } else {
+        16
     }
 }
 
-pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth: usize, dlim: usize, empty_deck: bool) -> (Option<Vec<Action>>, i32) {
+pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth: usize, dlim: usize, empty_deck: bool) 
+        -> (Option<Vec<Action>>, i32) {
     let mut cur : GameState;
     let mut dlim_adj : usize;
     if depth == 0 {
@@ -37,8 +38,9 @@ pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth:
         cur = working.unwrap();
         dlim_adj = dlim;
     }
-    if cur.start.unwrap().elapsed().as_seconds_f32() > 1.5 {
-        dlim_adj -= 1
+    let elapsed = cur.start.unwrap().elapsed().as_seconds_f32();
+    if elapsed > 1.5 {
+        dlim_adj -= 1*(elapsed-1.0).floor() as usize;
     }
     if depth > dlim_adj {
         return (Some(Vec::new()), cur.eval(&orig, me))
@@ -48,11 +50,11 @@ pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth:
     if acts.len() == 0 {
         return (None, 0)
     }
-    let mut evals = Vec::new();
-    let mut chains = Vec::new();
+    let mut evals = vec![0; 2*acts.len()];
+    let mut chains = vec![None; 2*acts.len()];
     let mut did_mystery = false;
     for i in 0..acts.len() {
-        if empty_deck && acts[i].verb as usize == Verb::Defer as usize {
+        if empty_deck && acts[i].verb  == Verb::Defer {
             return (Some(Vec::new()), cur.eval_pass(&orig, me))
         }
         let mut s = cur.clone();
@@ -68,19 +70,21 @@ pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth:
                 // You passed with opponent picking up
                 // You will play next turn
                 if s.picking_up {
-                    let (c, r) = eval_node(orig, Some(s), me, depth+1, dlim, true);
-                    c.push(acts[i]);
+                    let (c, r) = eval_node(orig, Some(s), me, depth+1, dlim_adj, true);
+                    let mut cu = c.unwrap();
+                    cu.push(acts[i]);
                     evals[2*i] = r;
                     evals[2*i+1] = 0;
-                    chains[2*i] = c;
+                    chains[2*i] = Some(cu);
                     chains[2*i+1] = None;
                 // Opponent successfully defended and will go next
                 } else {
-                    let (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim, true);
-                    c.push(acts[i]);
+                    let (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim_adj, true);
+                    let mut cu = c.unwrap();
+                    cu.push(acts[i]);
                     evals[2*i] = 0;
                     evals[2*i+1] = r;
-                    chains[2*i+1] = c;
+                    chains[2*i+1] = Some(cu);
                     chains[2*i] = None;
                 }
             // Go per-hand
@@ -90,81 +94,84 @@ pub fn eval_node(orig: &GameState, working: Option<GameState>, me: usize, depth:
         }
         // Unknown card play or cover
         // Only check one mystery card
-        else if (acts[i].verb as usize == Verb::Play as usize 
-            || acts[i].verb as usize == Verb::Cover as usize) 
-            && !did_mystery 
-            && acts[i].card == rules::UNK_CARD {
-                did_mystery = true;
-                evals[2*i] = s.eval(&orig, me);
-                evals[2*i+1] = 0;
-                chains[2*i] = Some(vec![acts[i]]);
-                chains[2*i+1] = None;
-            }
+        else if !did_mystery
+                && (acts[i].verb == Verb::Play || acts[i].verb == Verb::Cover) 
+                && acts[i].card == rules::UNK_CARD {
+            did_mystery = true;
+            evals[2*i] = s.eval(&orig, me);
+            evals[2*i+1] = 0;
+            chains[2*i] = Some(vec![acts[i]]);
+            chains[2*i+1] = None;
         }
         // Pickup - Opponent's move will determine evaluation
         // Penalize taking cards with zero deck size (end of game)
-        else if acts[i].verb as usize == Verb::Pickup as usize {
+        else if acts[i].verb == Verb::PickUp {
             evals[2*i] = 0;
             chains[2*i] = None;
-            let (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim, empty_deck);
-            c.push(acts[i]);
-            chains[2*i+1] = r;
-            chains[2*i+1] = Some(c);
+            let (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim_adj, empty_deck);
+            let mut cu = c.unwrap();
+            cu.push(acts[i]);
+            evals[2*i+1] = r+3; // +3 penalty
+            chains[2*i+1] = Some(cu);
+        // Ordinary action
         } else {
-            let mut (c, r) = eval_node(orig, Some(s), me, depth+1, dlim, empty_deck);
-            c.push(acts[i]);
-            evals[2*i] = r;
-            chains[2*i] = c;
-            (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim, empty_deck);
-            c.push(acts[i]);
-            evals[2*i+1] = r;
-            chains[2*i+1] = c;
+            let (c, r) = eval_node(orig, Some(s.clone()), me, depth+1, dlim_adj, empty_deck);
+            match c {
+                Some(mut cu) => {
+                    cu.push(acts[i]);
+                    evals[2*i] = r;
+                    chains[2*i] = Some(cu);
+                }
+                None => {
+                    chains[2*i] = None;
+                }
+            }
+            let (c, r) = eval_node(orig, Some(s), 1-me, depth+1, dlim_adj, empty_deck);
+            match c {
+                Some(mut cu) => {
+                    cu.push(acts[i]);
+                    evals[2*i+1] = r;
+                    chains[2*i+1] = Some(cu);
+                }
+                None => {
+                    chains[2*i+1] = None;
+                }
+            }
         }
     }
     let mut best = -10000;
     let mut besti = 0;
-    for i in 0..chains.len() {
-        
-    }
-    return (Some(Vec::new()), 0)
-}
-
-/*
-    // Find likely action
-    var bestChain []*FastAction
-    best := math.Inf(-1)
-    for i,_ := range acts {
-        if chains[2*i] == nil && chains[2*i+1] == nil {
+    for i in 0..acts.len() {
+        if chains[2*i].is_none() && chains[2*i+1].is_none() {
             continue
         }
-        if chains[2*i] == nil {
-            e := -evals[2*i+1]
+        if chains[2*i].is_none() {
+            let mut e = -evals[2*i+1];
             if e > best {
-                bestChain = chains[2*i+1]
-                best = e
+                besti = 2*i+1;
+                best = e;
             }
-        } else if chains[2*i+1] == nil {
-            e := evals[2*i]
+        } else if chains[2*i+1].is_none() {
+            let mut e = evals[2*i];
             if e > best {
-                bestChain = chains[2*i]
-                best = e
+                besti = 2*i;
+                best = e;
             }
         } else {
-            e1 := evals[2*i]
-            e2 := -evals[2*i+1]
+            let mut e1 = evals[2*i];
+            let mut e2 = -evals[2*i+1];
             if e1 > best {
-                bestChain = chains[2*i]
-                best = e1
+                besti = 2*i;
+                best = e1;
             }
             if e2 > best {
-                bestChain = chains[2*i+1]
-                best = e2
+                besti = 2*i+1;
+                best = e2;
             }
         }
     }
-    return bestChain, best
-}*/
-
+    return (chains.swap_remove(besti), best)
+}
 
 impl GameState {
     pub fn eval(&self, cur: &GameState, me: usize) -> i32 {
@@ -191,9 +198,9 @@ impl GameState {
         v
     } 
     pub fn eval_pass(&self, orig: &GameState, me: usize) -> i32 {
-        let bonus = 0;
+        let mut bonus = 0;
         if self.picking_up {
-            bonus = self.plays.len() as i32 + rules::num_not_unk(self.covers.len()) as i32;
+            bonus = self.plays.len() as i32 + rules::num_not_unk(&self.covers) as i32;
             if self.defender == me {
                 bonus *= -1;
             }
@@ -216,6 +223,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use crate::rules;
+    use crate::search;
     
     #[test]
     fn test_eval() {
@@ -224,12 +232,11 @@ mod tests {
         assert_eq!(val, 0);
     }
 
-    /*#[test]
-    fn test_eval_2moves() {
+    #[test]
+    fn test_eval_node() {
         let mut g = rules::Game::new(0, "computer".to_string());
-        g.take_action(&g.state.random_action());
-        g.take_action(&g.state.random_action());
-        let val = g.state.eval(&g.state.clone(), 0);
-        assert_eq!(val, 1);
-    }*/
+        let (c, r) = search::eval_node(&g.state, None, 0, 0, 0, false);
+        assert_eq!(c.is_none(), false);
+        assert_ne!(c.unwrap().len(), 0);
+    }
 }
