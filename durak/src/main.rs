@@ -14,8 +14,29 @@ fn random_game() {
         g.take_action(&a);
         println!("{}", serde_json::to_string(&a).unwrap());
         println!("{}", serde_json::to_string(&g).unwrap());
-        println!("{}", orig_state.eval(&g.state, 1));
+        println!("{}", orig_state.eval(&g.state, 1, false));
     }
+}
+
+fn random_game_search() {
+    let mut g = rules::Game::new(0, "computer".to_string());
+    let (c, r) = search::eval_node(&g.state.clone(), None, 0, 0, 0, false);
+    println!("{}", r);
+    println!("{}", serde_json::to_string(&c).unwrap());
+    println!("{}", serde_json::to_string(&g.state).unwrap());
+}
+
+fn random_game_end_search() {
+    let mut g = rules::Game::new(0, "computer".to_string());
+    g.deck = Vec::new();
+    let (c, r) = search::eval_node(&g.state.clone(), None, 0, 0, 0, true);
+    println!("{}", r);
+    println!("{}", serde_json::to_string(&c).unwrap());
+    let mut cu = c.unwrap();
+    g.take_action(&cu.last().unwrap());
+    let acts = g.state.possible_actions();
+    println!("{}", serde_json::to_string(&acts).unwrap());
+    println!("{}", serde_json::to_string(&g.state).unwrap());
 }
 
 fn main() {
@@ -48,5 +69,7 @@ fn main() {
     }
     g.take_action(&acts[0]);
     println!("{}", serde_json::to_string(&g).unwrap());*/
-    random_game();
+    //random_game();
+    //random_game_search();
+    random_game_end_search();
 }

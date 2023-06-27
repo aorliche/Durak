@@ -225,6 +225,9 @@ impl GameState {
             self.attacker_actions(pidx)
         }
     }
+    pub fn possible_actions(&self) -> Vec<Action> {
+        self.player_actions(0).into_iter().chain(self.player_actions(1).into_iter()).collect()
+    }
     pub fn random_action(&self) -> Action {
         self.player_actions(0).iter().chain(self.player_actions(1).iter()).choose(&mut thread_rng()).unwrap().clone()
     }
@@ -260,6 +263,9 @@ impl GameState {
                             self.hands[self.defender].push(card);
                         } 
                     } 
+                    self.defender = self.defender;
+                } else {
+                    self.defender = 1-self.defender;
                 }
                 self.plays.clear();
                 self.covers.clear();
