@@ -8,13 +8,13 @@ import (
 func (state *GameState) DepthLimit() int {
     nCards := len(state.Hands[0]) + len(state.Hands[1]);
     if nCards > 18 {
-        return 6
+        return 7
     } else if nCards > 12 {
-        return 8
+        return 9
     } else if nCards > 10 {
-        return 10
+        return 11
     } else if nCards > 8{
-        return 12
+        return 13
     } else {
         return 16
     }
@@ -30,15 +30,13 @@ func Contains(card Card, cards []Card) bool {
 }
 
 func (state *GameState) CardValue(card Card) int {
-    v := 0
     if card == UNK_CARD {
-        return v
+        return 0
     }
     if card.Suit() == state.Trump.Suit() {
-        v += 6
+        return 6 + card.Rank()
     }
-    v += card.Rank() - 4
-    return v
+    return card.Rank() - 4
 }
 
 func (orig *GameState) Eval(cur *GameState, me int, emptyDeck bool) int {

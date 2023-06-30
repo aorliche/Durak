@@ -26,7 +26,7 @@ const (
 
 var suits = []string{"Clubs", "Spades", "Hearts", "Diamonds"}
 var ranks = []string{"6", "7", "8", "9", "10", "Jack", "Queen", "King", "Ace"}
-var verbs = []string{"Play", "Cover", "Pass", "Reverse", "Pickup", "Defer"}
+var verbs = []string{"Play", "Cover", "Reverse", "Pass", "Pickup", "Defer"}
 
 func CardFromRankSuit(rank int, suit int) Card {
     return Card(suit*9 + rank)
@@ -348,6 +348,9 @@ func InitGame(key int, versus string) *Game {
 }
 
 func (game *Game) CheckWinner() int {
+    if game.Recording.Winner != -1 {
+        return game.Recording.Winner
+    }
     if len(game.Deck) > 0 {
         return -1
     }
@@ -368,8 +371,26 @@ func (game *Game) Deal(player int) {
    game.Memory.Sizes[player] = len(game.State.Hands[player])
 }
 
-func (game *Game) TakeAction(action Action) {
-    game.Recording.Actions = append(game.Recording.Actions, action)
+func (game *Game) TakeAction(action Action) bool {
+    // Check that action is still legal
+    acts := game.State.PlayerActions(action.Player)
+    found := false
+    for _, act := range acts {
+        if act == action {
+            found = true
+        }
+    }
+    if !found {
+        return false
+    }
+    // No strings of Defer verbs in recordings
+    if action.Verb == DeferVerb {
+        if len(game.Recording.Actions) > 0 && game.Recording.Actions[len(game.Recording.Actions)-1].Verb != DeferVerb {
+            game.Recording.Actions = append(game.Recording.Actions, action)
+        }
+    } else {
+        game.Recording.Actions = append(game.Recording.Actions, action)
+    }
     switch action.Verb {
         case PlayVerb, CoverVerb, ReverseVerb: {
             game.State.TakeAction(action);
@@ -400,4 +421,5 @@ func (game *Game) TakeAction(action Action) {
             game.State.TakeAction(action);
         }
     }
+    return true
 }

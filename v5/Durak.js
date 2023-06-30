@@ -153,6 +153,7 @@ class Game {
         fetch(this.join ? `http://${ip}:8080/join?game=${this.id}&p=1` : `http://${ip}:8080/new?computer=${computer}`)
         .then(resp => resp.json())
         .then(json => {
+            console.log(json);
             this.id = json.Key;
             this.init(json)
         })
@@ -703,15 +704,4 @@ window.addEventListener('load', e => {
             game.draw(ctx);
         }
     }, 100);
-
-    /*$('#memory').addEventListener('click', e => {
-        e.preventDefault();
-        fetch(`http://${ip}:8080/memory?game=${game.id}`)
-        .then(resp => resp.json())
-        .then(json => {
-            updateKnowledge(json);
-            //text.value = JSON.stringify(json);
-        })
-        .catch(err => console.log(err));
-    });*/
 });

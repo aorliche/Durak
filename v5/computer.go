@@ -8,7 +8,7 @@ import (
 
 func (game *Game) MakeEasyPlay() {
     game.mutex.Lock()
-    if game.Recording.Winner != -1 {
+    if game.CheckWinner() != -1 {
         game.mutex.Unlock()
         return
     }
@@ -38,6 +38,27 @@ func (game *Game) MakeEasyPlay() {
     game.mutex.Unlock()
 }
 
+func (game *Game) MakeMediumPlay() {
+    game.mutex.Lock()
+    if game.CheckWinner() != -1 {
+        game.mutex.Unlock()
+        return
+    }
+    var state *GameState
+    if len(game.Deck) > 1 {
+        state = game.MaskUnknownCards(1)
+    } else {
+        state = game.State
+    }
+    c, r := state.EvalNode(state, 1, 0, 0, len(game.Deck) == 0)
+    if len(c) > 0 {
+        act := c[len(c)-1]
+        fmt.Println(r, act.ToStr())
+        game.TakeAction(act)
+    }
+    game.mutex.Unlock()
+}
+
 // comp is "Easy" or "Medium"
 func (game *Game) StartComputer(comp string) {
     go game.RandomLoop(comp)
@@ -45,14 +66,14 @@ func (game *Game) StartComputer(comp string) {
 
 func (game *Game) RandomLoop(comp string) {
     for {
-        if game.Recording.Winner != -1 {
+        if game.CheckWinner() != -1 {
             break
         }
         time.Sleep(100 * time.Millisecond)
         if comp == "Easy" {
             game.MakeEasyPlay()
-        } /*else {
+        } else {
             game.MakeMediumPlay()
-        }*/
+        }
     }
 }

@@ -81,10 +81,10 @@ type GameInfo struct {
     Winner int
 }
 
-func (game *Game) MakeGameInfo() *GameInfo {
+func (game *Game) MakeGameInfo(player int) *GameInfo {
     return &GameInfo{
         Key: game.Key,
-        State: game.State,
+        State: game.MaskUnknownCards(player),
         Memory: game.Memory,
         Actions: [][]Action{game.State.PlayerActions(0), game.State.PlayerActions(1)},
         DeckSize: len(game.Deck),
@@ -113,7 +113,7 @@ func Info(w http.ResponseWriter, req *http.Request) {
             fmt.Println("Error writing game file")
         }
     }
-    info := game.MakeGameInfo()
+    info := game.MakeGameInfo(p)
     jsn, _ := json.Marshal(info)
     fmt.Fprintf(w, "%s\n", jsn)
     game.mutex.Unlock()
@@ -134,7 +134,7 @@ func TakeAction(w http.ResponseWriter, req *http.Request) {
     }
     fmt.Printf("%s\n", act.ToStr())
     game.TakeAction(act) 
-    info := game.MakeGameInfo()
+    info := game.MakeGameInfo(act.Player)
     jsn,_ := json.Marshal(info)
     fmt.Fprintf(w, "%s\n", jsn)
     game.mutex.Unlock()
