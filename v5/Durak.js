@@ -440,7 +440,7 @@ class Action {
         if ([PlayVerb, CoverVerb, ReverseVerb].includes(act.Verb)) {
             this.card = new Card(act.Card);
         } 
-        this.cover = act.Covering ? new Card(act.Covering) : null;
+        this.cover = act.Covering != -1 ? new Card(act.Covering) : null;
     }
 
     take() {
