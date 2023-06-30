@@ -1,0 +1,46 @@
+#durak-canvas {
+    border: 1px solid black;
+}
+#top {
+    position: relative;
+    font-size: 18px;
+    color: red;
+    font-weight: bold;
+    height: 0px;
+    top: 10px;
+    left: 10px;
+    z-index: 1;
+}
+#bottom {
+    position: relative;
+    font-size: 18px;
+    width: 120px;
+    height: 0px;
+    left: 10px;
+}
+#bottom {
+    top: -40px;
+}
+#durak {
+    display: flex;
+}
+#durak-list {
+    margin-left: 20px;
+    width: 180px;
+}
+#durak-list select {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 160px;
+    min-height: 200px;
+}
+#durak-memory {
+    margin-left: 20px;
+}
+#durak-memory img {
+    width: 40px;
+    padding: 2px;
+}
+#discard img {
+    opacity: 50%;
+}

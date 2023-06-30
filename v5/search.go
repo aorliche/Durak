@@ -1,6 +1,7 @@
 package main
 
 import (
+    //"fmt"
     "time" 
 )
 
@@ -99,7 +100,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
     // Default values should be 0 and nil
     evals := make([]int, 2*len(acts))
     chains := make([][]Action, 2*len(acts))
-    //didMystery := false
+    playedUnkCard := false
     for i, act := range acts {
         // Only allow defer as the first action of search
         // So AI can keep deferring on polling
@@ -137,20 +138,19 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
             } else {
                 return []Action{act}, orig.EvalPass(cur, me, false)
             }
-        } else if act.Verb == PickupVerb {
         // Unknown card play or cover
         // Only check one mystery card
-        /*else if !did_mystery
-                && (acts[i].verb == Verb::Play || acts[i].verb == Verb::Cover) 
-                && acts[i].card == rules::UNK_CARD {
-            did_mystery = true;
-            evals[2*i] = orig.eval(&s, me, empty_deck);
-            evals[2*i+1] = 0;
-            chains[2*i] = Some(vec![acts[i]]);
-            chains[2*i+1] = None;
-        }*/
+        } else if act.Card == UNK_CARD && (act.Verb == PlayVerb || act.Verb == CoverVerb) {
+            if !playedUnkCard {
+                playedUnkCard = true
+                evals[2*i] = orig.Eval(s, me, emptyDeck)
+                evals[2*i+1] = 0
+                chains[2*i] = []Action{act}
+                chains[2*i+1] = nil
+            } 
         // Pickup - Opponent's move will determine evaluation
         // Penalize taking cards with zero deck size (end of game)
+        } else if act.Verb == PickupVerb {
             c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, emptyDeck)
             evals[2*i] = 0
             evals[2*i+1] = r+3 // +3 penalty

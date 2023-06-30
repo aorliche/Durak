@@ -6,6 +6,7 @@ import (
     "math/rand"
     //"reflect"
     //"strings"
+    "sync"
     "time"
 )
 
@@ -17,8 +18,8 @@ var UNK_CARD = Card(-1)
 const (
     PlayVerb Verb = iota
     CoverVerb 
-    PassVerb
     ReverseVerb
+    PassVerb
     PickupVerb
     DeferVerb
 )
@@ -278,11 +279,17 @@ func (state *GameState) Clone() *GameState {
         Defender: state.Defender,
         PickingUp: state.PickingUp,
         Deferring: state.Deferring,
+        Trump: state.Trump,
         Plays: append(make([]Card, 0), state.Plays...),
         Covers: append(make([]Card, 0), state.Covers...),
         Hands: hands,
         start: state.start,
     }
+}
+
+func (state *GameState) ToStr() string {
+    jsn, _ := json.Marshal(state)
+    return string(jsn)
 }
 
 type Memory struct {
@@ -296,10 +303,18 @@ type Game struct {
     State *GameState
     Deck []Card
     Memory *Memory
-    Recording []string
+    Recording *Recording
     Versus string
+    joined bool
+    mutex sync.Mutex
+}
+
+type Recording struct {
+    Versus string
+    Deck []Card
+    Hands [][]Card
+    Actions []Action
     Winner int
-    Joined bool
 }
 
 func InitGame(key int, versus string) *Game {
@@ -307,14 +322,16 @@ func InitGame(key int, versus string) *Game {
     h0 := append(make([]Card, 0), deck[0:6]...)
     h1 := append(make([]Card, 0), deck[6:12]...)
     deck = append(make([]Card, 0), deck[12:]...)
-    recording := make([]string, 4)
-    jsn, _ := json.Marshal(deck)
-    recording[0] = string(versus)
-    recording[1] = string(jsn)
-    jsn, _ = json.Marshal(h0)
-    recording[2] = string(jsn)
-    jsn, _ = json.Marshal(h1)
-    recording[3] = string(jsn)
+    recording := &Recording{
+        Versus: versus,
+        Deck: append(make([]Card, 0), deck...),
+        Hands: [][]Card{
+            append(make([]Card, 0), h0...), 
+            append(make([]Card, 0), h1...),
+        },
+        Actions: make([]Action, 0),
+        Winner: -1,
+    }
     return &Game{
         Key: key, 
         State: InitGameState(deck[0], [][]Card{h0, h1}),
@@ -326,19 +343,21 @@ func InitGame(key int, versus string) *Game {
         },
         Recording: recording,
         Versus: versus,
-        Winner: -1,
-        Joined: false,
+        joined: false,
     }
 }
 
-func (game *Game) IsOver() bool {
+func (game *Game) CheckWinner() int {
     if len(game.Deck) > 0 {
-        return false
+        return -1
     }
-    if len(game.State.Hands[0]) == 0 || len(game.State.Hands[1]) == 0 {
-        return true 
+    for i := 0; i < len(game.State.Hands); i++ {
+        if len(game.State.Hands[i]) == 0 {
+            game.Recording.Winner = i
+            return i
+        }
     }
-    return false
+    return -1
 }
 
 func (game *Game) Deal(player int) {
@@ -350,7 +369,7 @@ func (game *Game) Deal(player int) {
 }
 
 func (game *Game) TakeAction(action Action) {
-    game.Recording = append(game.Recording, action.ToStr())
+    game.Recording.Actions = append(game.Recording.Actions, action)
     switch action.Verb {
         case PlayVerb, CoverVerb, ReverseVerb: {
             game.State.TakeAction(action);
