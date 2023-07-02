@@ -151,7 +151,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
         } else if act.Verb == PickupVerb {
             c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, emptyDeck)
             evals[2*i] = 0
-            evals[2*i+1] = r+3 // +3 penalty
+            evals[2*i+1] = r
             chains[2*i] = nil
             chains[2*i+1] = append(c, act)
         // Ordinary action
