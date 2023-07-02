@@ -64,16 +64,16 @@ func (orig *GameState) Eval(cur *GameState, me int, emptyDeck bool) int {
     }
     return v
 }
-    
-func (orig *GameState) EvalPass(cur *GameState, me int, emptyDeck bool) int {
-    bonus := 0
-    if cur.PickingUp {
-        bonus = len(cur.Plays) + NumNotUnk(cur.Covers)
-        if cur.Defender == me {
-            bonus *= -1
-        }
+
+func (cur *GameState) HandsPenalty(me int) int {
+    v := 0
+    if len(cur.Hands[me]) > 6 {
+        v -= len(cur.Hands[me])-6
     }
-    return orig.Eval(cur, me, emptyDeck) + bonus
+    if len(cur.Hands[1-me]) > 6 {
+        v += len(cur.Hands[1-me])-6
+    }
+    return v
 }
 
 func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emptyDeck bool) ([]Action, int) {
@@ -134,7 +134,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
                 }
             // Go per-hand
             } else {
-                return []Action{act}, orig.EvalPass(cur, me, false)
+                return []Action{act}, orig.Eval(cur, me, false) + s.HandsPenalty(me)
             }
         // Unknown card play or cover
         // Only check one mystery card
@@ -150,6 +150,9 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
         // Penalize taking cards with zero deck size (end of game)
         } else if act.Verb == PickupVerb {
             c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, emptyDeck)
+            if len(s.Hands[me]) > 6 {
+                r += len(s.Plays)+NumNotUnk(s.Covers)
+            }
             evals[2*i] = 0
             evals[2*i+1] = r
             chains[2*i] = nil
