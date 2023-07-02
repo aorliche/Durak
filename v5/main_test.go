@@ -47,7 +47,7 @@ func TestTakeAction(t *testing.T) {
 
 func TestSearchStart(t *testing.T) {
     game := InitGame(0, "Computer")
-    c, _ := game.State.EvalNode(nil, 0, 0, 0, false)
+    c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
     if len(c) == 0 {
         t.Errorf("No action chain for search")
     }
@@ -56,7 +56,7 @@ func TestSearchStart(t *testing.T) {
 func TestSearchEnd(t *testing.T) {
     game := InitGame(0, "Computer")
     game.Deck = make([]Card, 0)
-    c, _ := game.State.EvalNode(nil, 0, 0, 0, true)
+    c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
     if len(c) == 0 {
         t.Errorf("No action chain for search")
     }

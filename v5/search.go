@@ -8,13 +8,13 @@ import (
 func (state *GameState) DepthLimit() int {
     nCards := len(state.Hands[0]) + len(state.Hands[1]);
     if nCards > 18 {
-        return 7
+        return 6
     } else if nCards > 12 {
-        return 9
+        return 8
     } else if nCards > 10 {
-        return 11
+        return 9
     } else if nCards > 8{
-        return 13
+        return 10
     } else {
         return 16
     }
@@ -76,19 +76,20 @@ func (cur *GameState) HandsPenalty(me int) int {
     return v
 }
 
-func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emptyDeck bool) ([]Action, int) {
+func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, deckSize int) ([]Action, int) {
     dlimAdj := dlim
     if depth == 0 {
         cur = orig.Clone()
         dlimAdj = orig.DepthLimit()
         orig.start = time.Now()
     } 
+    // Iterative crappening
     elapsed := time.Now().Sub(orig.start)
     if elapsed.Seconds() > 2 {
-        dlimAdj -= int(elapsed.Seconds()) - 2
+        dlimAdj -= (int(elapsed.Seconds()) - 2)/2
     }
     if depth > dlimAdj {
-        return make([]Action, 0), orig.Eval(cur, me, emptyDeck)
+        return make([]Action, 0), orig.Eval(cur, me, deckSize < 3)
     }
     acts := cur.PlayerActions(me)
     // If you have no actions, return
@@ -100,71 +101,62 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, emp
     chains := make([][]Action, 2*len(acts))
     playedUnkCard := false
     for i, act := range acts {
-        // Only allow defer as the first action of search
-        // So AI can keep deferring on polling
-        // But won't clog up the search stack
-        if act.Verb == DeferVerb && depth != 0 {
-            continue
-        }
         s := cur.Clone();
         s.TakeAction(act);
         // Check win
-        if emptyDeck && len(s.Hands[me]) == 0 {
+        if deckSize == 0 && len(s.Hands[me]) == 0 {
             return []Action{act}, 1000
         }
+        // You don't get actions but opponent does
+        if act.Verb == DeferVerb {
+            c, r := orig.EvalNode(cur, 1-me, depth+1, dlimAdj, deckSize)
+            evals[2*i+1] = r
+            chains[2*i+1] = append(c, act)
         // End hand
-        if act.Verb == PassVerb {
+        } else if act.Verb == PassVerb {
             // Go to the end of game
-            if emptyDeck {
+            if deckSize == 0 {
                 // You passed with opponent picking up
                 // You will play next turn
                 if cur.PickingUp {
-                    c, r := orig.EvalNode(s, me, depth+1, dlimAdj, true)
-                    evals[2*i] = r
-                    evals[2*i+1] = 0
+                    c, r := orig.EvalNode(s, me, depth+1, dlimAdj, 0)
+                    evals[2*i] = r + s.HandsPenalty(me)
                     chains[2*i] = append(c, act)
-                    chains[2*i+1] = nil
                 // Opponent successfully defended and will go next
                 } else {
-                    c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, true)
-                    evals[2*i] = 0
-                    evals[2*i+1] = r
-                    chains[2*i] = nil
+                    c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, 0) 
+                    evals[2*i+1] = r + s.HandsPenalty(1-me)
                     chains[2*i+1] = append(c, act)
                 }
             // Go per-hand
             } else {
-                return []Action{act}, orig.Eval(cur, me, false) + s.HandsPenalty(me)
+                return []Action{act}, orig.Eval(cur, me, deckSize < 3) + s.HandsPenalty(me)
             }
         // Unknown card play or cover
         // Only check one mystery card
         } else if act.Card == UNK_CARD && (act.Verb == PlayVerb || act.Verb == CoverVerb) {
             if !playedUnkCard {
                 playedUnkCard = true
-                evals[2*i] = orig.Eval(s, me, emptyDeck)
-                evals[2*i+1] = 0
+                evals[2*i] = orig.Eval(s, me, deckSize < 3)
                 chains[2*i] = []Action{act}
-                chains[2*i+1] = nil
             } 
         // Pickup - Opponent's move will determine evaluation
         // Penalize taking cards with zero deck size (end of game)
         } else if act.Verb == PickupVerb {
-            c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, emptyDeck)
+            c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, deckSize)
             if len(s.Hands[me]) > 6 {
                 r += len(s.Plays)+NumNotUnk(s.Covers)
             }
-            evals[2*i] = 0
             evals[2*i+1] = r
-            chains[2*i] = nil
             chains[2*i+1] = append(c, act)
         // Ordinary action
         } else {
-            c, r := orig.EvalNode(s, me, depth+1, dlimAdj, emptyDeck)
+            c, r := orig.EvalNode(s, me, depth+1, dlimAdj, deckSize)
             if c != nil {
                 evals[2*i] = r
                 chains[2*i] = append(c, act)
             }
-            c, r = orig.EvalNode(s, 1-me, depth+1, dlimAdj, emptyDeck)
+            c, r = orig.EvalNode(s, 1-me, depth+1, dlimAdj, deckSize)
             if c != nil {
                 evals[2*i+1] = r
                 chains[2*i+1] = append(c, act)

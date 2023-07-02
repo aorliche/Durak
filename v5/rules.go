@@ -230,6 +230,7 @@ func (state *GameState) TakeAction(action Action) {
             state.Plays = append(state.Plays, action.Card)
             state.Covers = append(state.Covers, UNK_CARD)
             RemoveCard(&state.Hands[action.Player], action.Card)
+            state.Deferring = false
         }
         case CoverVerb: {
             for i := 0; i < len(state.Plays); i++ {
@@ -238,6 +239,7 @@ func (state *GameState) TakeAction(action Action) {
                 }
             }
             RemoveCard(&state.Hands[action.Player], action.Card)
+            state.Deferring = false
         }
         case ReverseVerb: {
             state.Plays = append(state.Plays, action.Card)
@@ -248,6 +250,7 @@ func (state *GameState) TakeAction(action Action) {
         }
         case PickupVerb: {
             state.PickingUp = true
+            state.Deferring = false
         }
         case PassVerb: {
             if state.PickingUp {

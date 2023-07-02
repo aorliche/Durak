@@ -50,7 +50,7 @@ func (game *Game) MakeMediumPlay() {
     } else {
         state = game.State
     }
-    c, r := state.EvalNode(state, 1, 0, 0, len(game.Deck) == 0)
+    c, r := state.EvalNode(state, 1, 0, 0, len(game.Deck))
     if len(c) > 0 {
         act := c[len(c)-1]
         fmt.Println(r, act.ToStr())
