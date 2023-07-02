@@ -10,11 +10,11 @@ func (state *GameState) DepthLimit() int {
     if nCards > 18 {
         return 6
     } else if nCards > 12 {
-        return 8
-    } else if nCards > 10 {
         return 9
-    } else if nCards > 8{
+    } else if nCards > 10 {
         return 10
+    } else if nCards > 8{
+        return 11
     } else {
         return 16
     }
