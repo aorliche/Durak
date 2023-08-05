@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Websockets Test</title>
+<script>
+    const $ = q => document.querySelector(q);
+    window.addEventListener('load', e => {
+        const ws = new WebSocket('ws://localhost:8080/ws'); 
+        ws.onopen = e1 => {
+            ws.send(JSON.stringify({hello: 'world'}));
+        }
+        ws.onmessage = e1 => {
+            $('#message').innerText = e1.data;
+        }
+    });
+</script>
+</head>
+<body>
+    <h1>Websockets Test</h1>
+    <p>Message: <span id="message"></span></p>
+</body>
+</html>

@@ -3,13 +3,17 @@ package main
 import (
     "encoding/json"
     "fmt"
-    "os"
+    "log"
     "net/http"
+    "os"
     "strconv"
     "time"
+
+    "github.com/gorilla/websocket"
 )
 
 var games = make(map[int]*Game)
+var upgrader = websocket.Upgrader{}
 
 func NextGameIdx() int {
     max := -1
@@ -51,7 +55,7 @@ func List(w http.ResponseWriter, req *http.Request) {
     fmt.Fprintf(w, "%s\n", jsn)
 }
 
-func Join(w http.ResponseWriter, req *http.Request) {
+/*func Join(w http.ResponseWriter, req *http.Request) {
     game := GetGame(w, req)
     if game == nil { 
         return
@@ -151,13 +155,96 @@ func Headers(fn HFunc) HFunc {
             "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
         fn(w, req)
     }
+}*/
+
+var upgrader = websocket.Upgrader{} // Default options
+
+type Request struct {
+   Type string 
+   Game int
+   Computer string
+   Action Action
+}
+
+        case "info": {
+            info := game.MakeGameInfo(player)
+            jsn, _ := json.Marshal(info)
+
+func socket(w http.ResponseWriter, r *http.Request) {
+    conn, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Println(err)
+        return
+    }
+    player := -1
+    for {
+        msgType, msg, err := conn.ReadMessage()
+        if err != nil {
+            log.Println(err)
+            return  
+        }
+        // Do we ever get any other types of messages?
+        if msgType != websocket.TextMessage {
+            return
+        }
+        var req Request
+        json.NewDecoder(msg).Decode(&req)
+        switch req.Type {
+            case "List" : {
+                for key := range games {
+                    if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
+                        keys = append(keys, key) 
+                    }
+                }
+                jsn, _ := json.Marshal(keys)
+                err = conn.WriteMessage(websocket.TextMessage, jsn)
+            }
+            case "New": {
+                if player != -1 {
+                    log.Println("Player already joined")
+                    return
+                }
+                player = 0
+                game := InitGame(NextGameIdx(), req.Computer)
+                games[game.Key] = game
+                if req.Computer != "Human" {
+                    game.StartComputer(comp)
+                }
+                Info(conn, p, game.Key)
+            }
+            case "Join": {
+                if player != -1 {
+                    log.Println("Player already joined")
+                    return
+                }
+                player = 1
+                game = games[req.Game]
+                if game == nil { 
+                    log.Println("No such game", req.Game)
+                    return
+                }
+                game.joined = true
+                Info(conn, p, game.Key)
+            }
+            case "Action": {
+                for i,p := range game.State.Players {
+
+                }
+            }
+        }
+
+    }
+    defer conn.Close()
 }
 
 func main() {
-    http.HandleFunc("/list", Headers(List))
-    http.HandleFunc("/new", Headers(New))
-    http.HandleFunc("/join", Headers(Join))
-    http.HandleFunc("/info", Headers(Info))
-    http.HandleFunc("/action", Headers(TakeAction))
-    http.ListenAndServe("0.0.0.0:8080", nil)
+    log.SetFlags(0)
+    serveLocalFiles()
+    http.HandleFunc("/ws", socket)
+    http.HandleFunc("/list", List)
+    http.HandleFunc("/new", New)
+    http.HandleFunc("/join", Join)
+    //http.HandleFunc("/info", Headers(Info))
+    http.HandleFunc("/action", TakeAction)
+    log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
 }
