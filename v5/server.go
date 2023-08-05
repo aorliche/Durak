@@ -1,19 +1,19 @@
 package main
 
 import (
+    "bytes"
     "encoding/json"
     "fmt"
     "log"
     "net/http"
     "os"
-    "strconv"
     "time"
 
     "github.com/gorilla/websocket"
 )
 
 var games = make(map[int]*Game)
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{} // Default options
 
 func NextGameIdx() int {
     max := -1
@@ -25,55 +25,11 @@ func NextGameIdx() int {
     return max+1
 }
 
-func JsonErr(s string) string {
-    jsn, _ := json.Marshal(s)
-    return string(jsn)
-}
-
-func GetGame(w http.ResponseWriter, req *http.Request) *Game {
-    key, err := strconv.Atoi(req.URL.Query().Get("game"))
-    if err != nil {
-        fmt.Fprintf(w, "%s\n", JsonErr("No such game A"))
-        return nil
-    }
-    game, ok := games[key]
-    if !ok {
-        fmt.Fprintf(w, "%s\n", JsonErr("No such game B"))
-        return nil
-    }
-    return game
-}
-
-func List(w http.ResponseWriter, req *http.Request) {
-    keys := make([]int, 0)
-    for key := range games {
-        if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
-            keys = append(keys, key) 
-        }
-    }
-    jsn, _ := json.Marshal(keys)
-    fmt.Fprintf(w, "%s\n", jsn)
-}
-
-/*func Join(w http.ResponseWriter, req *http.Request) {
-    game := GetGame(w, req)
-    if game == nil { 
-        return
-    }
-    game.joined = true
-    Info(w, req)
-}
-
-// computer = Human, Easy, Medium
-func New(w http.ResponseWriter, req *http.Request) {
-    comp := req.URL.Query().Get("computer")
-    game := InitGame(NextGameIdx(), comp)
-    games[game.Key] = game
-    if comp != "Human" {
-        game.StartComputer(comp)
-    }
-    req.URL.RawQuery = fmt.Sprintf("p=0&game=%d", game.Key)
-    Info(w, req)
+type Request struct {
+   Type string 
+   Game int
+   Computer string
+   Action *Action
 }
 
 type GameInfo struct {
@@ -96,52 +52,108 @@ func (game *Game) MakeGameInfo(player int) *GameInfo {
     }
 }
 
-func Info(w http.ResponseWriter, req *http.Request) {
-    game := GetGame(w, req)
-    if game == nil {
-        return
-    }
+func SendInfo(conn *websocket.Conn, player int, game *Game) {
     game.mutex.Lock()
-    p, err := strconv.Atoi(req.URL.Query().Get("p"))
-    if err != nil || p < 0 || p > 1 {
-        fmt.Fprintf(w, "%s\n", JsonErr("Bad player"))
-        game.mutex.Unlock()
-        return
-    }
-    // Check winner, write game if done
-    if game.CheckWinner() != -1 {
-        jsn, _ := json.Marshal(game.Recording)
-        ts := time.Now().Unix()
-        err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
-        if err != nil {
-            fmt.Println("Error writing game file")
-        }
-    }
-    info := game.MakeGameInfo(p)
-    jsn, _ := json.Marshal(info)
-    fmt.Fprintf(w, "%s\n", jsn)
+    info := game.MakeGameInfo(player)
     game.mutex.Unlock()
+    jsn, _ := json.Marshal(info)
+    conn.WriteMessage(websocket.TextMessage, jsn)   
 }
 
-func TakeAction(w http.ResponseWriter, req *http.Request) {
-    game := GetGame(w, req)
-    if game == nil {
+func Socket(w http.ResponseWriter, r *http.Request) {
+    conn, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Println(err)
         return
     }
-    game.mutex.Lock()
-    var act Action
-    json.NewDecoder(req.Body).Decode(&act)
-    // Bad action sent?
-    if act.Card == Card(0) && act.Covering == Card(0) {
-        game.mutex.Unlock()
-        return
+    defer conn.Close()
+    player := -1
+    for {
+        msgType, msg, err := conn.ReadMessage()
+        if err != nil {
+            log.Println(err)
+            return  
+        }
+        // Do we ever get any other types of messages?
+        if msgType != websocket.TextMessage {
+            return
+        }
+        var req Request
+        json.NewDecoder(bytes.NewBuffer(msg)).Decode(&req)
+        switch req.Type {
+            case "List" : {
+                keys := make([]int, 0)
+                for key := range games {
+                    if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
+                        keys = append(keys, key) 
+                    }
+                }
+                jsn, _ := json.Marshal(keys)
+                err = conn.WriteMessage(websocket.TextMessage, jsn)
+                if err != nil {
+                    log.Println(err)
+                    return
+                }
+            }
+            case "New": {
+                if player != -1 {
+                    log.Println("Player already joined")
+                    return
+                }
+                player = 0
+                game := InitGame(NextGameIdx(), req.Computer)
+                games[game.Key] = game
+                if req.Computer != "Human" {
+                    game.StartComputer(req.Computer)
+                }
+                SendInfo(conn, player, game)
+            }
+            case "Join": {
+                if player != -1 {
+                    log.Println("Player already joined")
+                    return
+                }
+                player = 1
+                game := games[req.Game]
+                if game == nil { 
+                    log.Println("No such game", req.Game)
+                    return
+                }
+                game.joined = true
+                SendInfo(conn, player, game)
+            }
+            case "Action": {
+                game := games[req.Game]
+                if game == nil { 
+                    log.Println("No such game", req.Game)
+                    return
+                }
+                // TODO multiple computer players multiple threads
+                game.mutex.Lock()
+                // Bad action sent?
+                if req.Action.Card == Card(0) && req.Action.Covering == Card(0) {
+                    game.mutex.Unlock()
+                    return
+                }
+                fmt.Printf("%s\n", req.Action.ToStr())
+                game.TakeAction(*req.Action) 
+                // Check winner, write game if done
+                if game.CheckWinner() != -1 {
+                    jsn, _ := json.Marshal(game.Recording)
+                    ts := time.Now().Unix()
+                    err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
+                    if err != nil {
+                        fmt.Println("Error writing game file")
+                    }
+                }
+                game.mutex.Unlock()
+                // Send update to all
+                for p := range [2]int{0,1} {
+                    SendInfo(conn, p, game)
+                }
+            }
+        }
     }
-    fmt.Printf("%s\n", act.ToStr())
-    game.TakeAction(act) 
-    info := game.MakeGameInfo(act.Player)
-    jsn,_ := json.Marshal(info)
-    fmt.Fprintf(w, "%s\n", jsn)
-    game.mutex.Unlock()
 }
 
 type HFunc func (http.ResponseWriter, *http.Request)
@@ -155,96 +167,37 @@ func Headers(fn HFunc) HFunc {
             "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
         fn(w, req)
     }
-}*/
-
-var upgrader = websocket.Upgrader{} // Default options
-
-type Request struct {
-   Type string 
-   Game int
-   Computer string
-   Action Action
+}
+func ServeStatic(w http.ResponseWriter, req *http.Request, file string) {
+    http.ServeFile(w, req, file)
 }
 
-        case "info": {
-            info := game.MakeGameInfo(player)
-            jsn, _ := json.Marshal(info)
-
-func socket(w http.ResponseWriter, r *http.Request) {
-    conn, err := upgrader.Upgrade(w, r, nil)
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    player := -1
-    for {
-        msgType, msg, err := conn.ReadMessage()
+func ServeLocalFiles(dirs []string) {
+    for _, dirName := range dirs {
+        fsDir := os.Getenv("BASEDIR") + "/static/" + dirName
+        dir, err := os.Open(fsDir)
         if err != nil {
-            log.Println(err)
-            return  
+            log.Fatal(err)
         }
-        // Do we ever get any other types of messages?
-        if msgType != websocket.TextMessage {
-            return
+        files, err := dir.Readdir(0)
+        if err != nil {
+            log.Fatal(err)
         }
-        var req Request
-        json.NewDecoder(msg).Decode(&req)
-        switch req.Type {
-            case "List" : {
-                for key := range games {
-                    if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
-                        keys = append(keys, key) 
-                    }
-                }
-                jsn, _ := json.Marshal(keys)
-                err = conn.WriteMessage(websocket.TextMessage, jsn)
+        for _, v := range files {
+            //fmt.Println(v.Name(), v.IsDir())
+            if v.IsDir() {
+                continue
             }
-            case "New": {
-                if player != -1 {
-                    log.Println("Player already joined")
-                    return
-                }
-                player = 0
-                game := InitGame(NextGameIdx(), req.Computer)
-                games[game.Key] = game
-                if req.Computer != "Human" {
-                    game.StartComputer(comp)
-                }
-                Info(conn, p, game.Key)
-            }
-            case "Join": {
-                if player != -1 {
-                    log.Println("Player already joined")
-                    return
-                }
-                player = 1
-                game = games[req.Game]
-                if game == nil { 
-                    log.Println("No such game", req.Game)
-                    return
-                }
-                game.joined = true
-                Info(conn, p, game.Key)
-            }
-            case "Action": {
-                for i,p := range game.State.Players {
-
-                }
-            }
+            reqFile := dirName + "/" + v.Name()
+            file := fsDir + "/" + v.Name()
+            http.HandleFunc(reqFile, Headers(func (w http.ResponseWriter, req *http.Request) {ServeStatic(w, req, file)}))
         }
-
     }
-    defer conn.Close()
 }
 
 func main() {
     log.SetFlags(0)
-    serveLocalFiles()
-    http.HandleFunc("/ws", socket)
-    http.HandleFunc("/list", List)
-    http.HandleFunc("/new", New)
-    http.HandleFunc("/join", Join)
-    //http.HandleFunc("/info", Headers(Info))
-    http.HandleFunc("/action", TakeAction)
-    log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
+    ServeLocalFiles([]string{"", "/cards/backs", "/cards/fronts"})
+    http.HandleFunc("/ws", Socket)
+    log.Fatal(http.ListenAndServe("0.0.0.0:8000", nil))
 }
