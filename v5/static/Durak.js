@@ -1,6 +1,4 @@
 
-let ip;
-
 $ = q => document.querySelector(q);
 $$ = q => [...document.querySelectorAll(q)]
 
@@ -11,6 +9,12 @@ const Suits = ['Hearts', 'Diamonds', 'Clubs', 'Spades'];
 const Ranks = ['6', '7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
 
 const scale = 0.45;
+
+let ip;
+let game;
+
+const cardImages = {};
+const cardBackImage = new Image;
 
 function drawText(ctx, text, p, color, font, stroke) {
     ctx.save();
@@ -49,9 +53,6 @@ function rank(i) {
     return ranks[i%ranks.length];
 }
 
-const cardImages = {};
-const cardBackImage = new Image;
-
 function loadImages(cb) {
 	// Load images
 	const numImagesToLoad = 36+1;
@@ -77,8 +78,6 @@ function loadImages(cb) {
 	cardBackImage.addEventListener('load', onLoadFn);
 	cardBackImage.src = 'cards/backs/astronaut.png';
 }
-
-let game;
 
 function newGame(id, computer) {
     if (game) {
@@ -146,23 +145,47 @@ class Game {
     constructor(id, computer) {
         // You are always player 0 in the client
         // Must remap if necessary when talking to the server
+        // join is useful for when id is not -1 for both players
         this.id = id;
         this.join = id == -1 ? false : true;
         this.players = [new Player(0, true), new Player(1, true)]; 
         this.board = new Board();
-        fetch(this.join ? `http://${ip}:8080/join?game=${this.id}&p=1` : `http://${ip}:8080/new?computer=${computer}`)
-        .then(resp => resp.json())
-        .then(json => {
+        this.firstMessage = false;
+        // Connect to socket
+        this.conn = new WebSocket(`ws://${ip}:8000/ws`);
+        this.conn.onopen = () => {
+            const msg = {};
+            if (this.join) {
+                msg.Type = 'Join';
+                msg.Game = id;
+            } else {
+                msg.Type = 'New';
+                msg.Computer = computer;
+            }
+            this.conn.send(JSON.stringify(msg));
+        }
+        // Get messages
+        this.conn.onmessage = e => {
+            const json = JSON.parse(e.data);
+            if (!this.firstMessage) {
+                this.firstMessage = true;
+                if (!this.join) {
+                    this.id = json.Key;
+                }
+            }
             console.log(json);
-            this.id = json.Key;
-            this.init(json)
-        })
-        .catch(err => console.log(err));
+            this.init(json);
+            updateKnowledge(json.Memory);
+            if (json.Winner != -1 ) {
+                this.winner = json.Winner;
+                this.conn.close();
+            }
+        }
         this.dragging = null;
         this.pending = false;
-        this.winner = null;
+        this.winner = -1;
+        console.log(this.winner);
         this.initButtons();
-        this.startPoll();
     }
 
     down(e) {
@@ -192,7 +215,7 @@ class Game {
             p.draw(ctx);
         });
         this.board.draw(ctx);
-        if (this.winner !== null) {
+        if (this.winner !== -1) {
             let text = "You lose...";
             if ((this.join && this.winner == 1) || (!this.join && this.winner == 0)) {
                 text = "You win!";
@@ -309,26 +332,6 @@ class Game {
         return [card, area, player];
     }
 
-    startPoll() {
-        const p = this.join ? 1 : 0;
-        this.poll = setInterval(() => {
-            fetch(`http://${ip}:8080/info?game=${this.id}&p=${p}`)
-            .then(resp => resp.json())
-            .then(json => {
-                this.update(json)
-                updateKnowledge(json.Memory);
-            })
-            .catch(err => console.log(err));
-        }, 500);
-    }
-
-    stopPoll() {
-        if (this.poll) {
-            clearInterval(this.poll);
-            this.poll = null;
-        }
-    }
-
     out(e) {
         if (this.dragging) {
             //this.dragging.player.hand.push(this.dragging);
@@ -403,10 +406,6 @@ class Game {
         this.players[0].actions = info.Actions[p0].map(a => new Action(a));
         this.players[1].actions = info.Actions[p1].map(a => new Action(a));
         this.updateButtons();
-        if (info.Winner != -1) {
-            this.winner = info.Winner;
-            this.stopPoll();
-        }
         this.players[0].setHovering(i);
     }
 
@@ -445,19 +444,9 @@ class Action {
     }
 
     take() {
+        const msg = {Type: Action, Game: game.id, Action: this.orig};
         game.pending = true;
-        fetch(`http://${ip}:8080/action?game=${game.id}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(this.orig)
-        })
-        .then(resp => resp.json())
-        .then(json => {
-            game.pending = false;
-        })
-        .catch(err => console.log(err));
+        game.conn.send(msg);
     }
 }
 
@@ -610,15 +599,15 @@ window.addEventListener('load', e => {
     .then(resp => resp.json())
     .then(json => {
         ip = json;
-    })
-    .catch(err => console.log(err));
 
-    setInterval(e => {
-        if (!ip) return;
-        fetch(`http://${ip}:8080/list`)
-        .then(resp => resp.json())
-        .then(json => {
-            json = json.sort();
+        // Separate connection for calling list
+        const conn = new WebSocket(`ws://${ip}:8000/ws`);
+
+        conn.onmessage = e => {
+            // List of integer game ids
+            const json = JSON.parse(e.data);
+            json.sort((a,b) => a-b);
+
             const select = $('#durak-list select');
             const toAdd = [];
             const games = [...select.options].map(opt => parseInt(opt.value));
@@ -646,9 +635,15 @@ window.addEventListener('load', e => {
                     select.appendChild(opt);
                 }
             });
-        })
-        .catch(err => console.log(err));
-    }, 1000);
+        }
+
+        setInterval(e => {
+            if (!ip) return;
+            if (!conn.readyState == 1) return;
+            conn.send(JSON.stringify({Type: 'List'}));
+        }, 1000);
+    })
+    .catch(err => console.log(err));
 
     $('#new').addEventListener('click', e => {
         newGame(-1, 'Human');

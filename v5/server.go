@@ -82,6 +82,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
         json.NewDecoder(bytes.NewBuffer(msg)).Decode(&req)
         switch req.Type {
             case "List" : {
+                log.Println("here")
                 keys := make([]int, 0)
                 for key := range games {
                     if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
@@ -96,6 +97,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 }
             }
             case "New": {
+                log.Println("here2")
                 if player != -1 {
                     log.Println("Player already joined")
                     return
@@ -126,6 +128,10 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 game := games[req.Game]
                 if game == nil { 
                     log.Println("No such game", req.Game)
+                    return
+                }
+                if game.Recording.Winner != -1 {
+                    log.Println("Game already won")
                     return
                 }
                 // TODO multiple computer players multiple threads
@@ -174,7 +180,7 @@ func ServeStatic(w http.ResponseWriter, req *http.Request, file string) {
 
 func ServeLocalFiles(dirs []string) {
     for _, dirName := range dirs {
-        fsDir := os.Getenv("BASEDIR") + "/static/" + dirName
+        fsDir := "static/" + dirName
         dir, err := os.Open(fsDir)
         if err != nil {
             log.Fatal(err)
@@ -199,5 +205,5 @@ func main() {
     log.SetFlags(0)
     ServeLocalFiles([]string{"", "/cards/backs", "/cards/fronts"})
     http.HandleFunc("/ws", Socket)
-    log.Fatal(http.ListenAndServe("0.0.0.0:8000", nil))
+    log.Fatal(http.ListenAndServe(":8000", nil))
 }
