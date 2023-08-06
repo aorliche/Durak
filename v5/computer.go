@@ -1,18 +1,18 @@
 package main
 
 import (
-    "fmt"
+    "log"
     "math/rand"
     "time"
 )
 
-func (game *Game) MakeEasyPlay() {
+func (game *Game) MakeEasyPlay() Action {
+    var act Action
     game.mutex.Lock()
     if game.CheckWinner() != -1 {
         game.mutex.Unlock()
-        return
+        return act
     }
-    var act Action
     acts := game.State.PlayerActions(1)
     rand.Shuffle(len(acts), func(i, j int) {
         acts[i], acts[j] = acts[j], acts[i]
@@ -32,17 +32,20 @@ func (game *Game) MakeEasyPlay() {
         act = acts[0]
     }
     if found && act.Verb != DeferVerb {
-        fmt.Println(act.ToStr())
+        log.Println(act.ToStr())
         game.TakeAction(act)
+        SendInfo(0, game)
     }
     game.mutex.Unlock()
+    return act
 }
 
-func (game *Game) MakeMediumPlay() {
+func (game *Game) MakeMediumPlay() Action {
+    var act Action
     game.mutex.Lock()
     if game.CheckWinner() != -1 {
         game.mutex.Unlock()
-        return
+        return act
     }
     var state *GameState
     if len(game.Deck) > 1 {
@@ -52,11 +55,14 @@ func (game *Game) MakeMediumPlay() {
     }
     c, r := state.EvalNode(state, 1, 0, 0, len(game.Deck))
     if len(c) > 0 {
-        act := c[len(c)-1]
-        fmt.Println(r, act.ToStr())
+        act = c[len(c)-1]
+        if act.Verb != DeferVerb {
+            log.Println(r, act.ToStr())
+        }
         game.TakeAction(act)
     }
     game.mutex.Unlock()
+    return act
 }
 
 // comp is "Easy" or "Medium"
@@ -67,13 +73,18 @@ func (game *Game) StartComputer(comp string) {
 func (game *Game) RandomLoop(comp string) {
     for {
         if game.CheckWinner() != -1 {
+            game.WriteGame()
             break
         }
         time.Sleep(100 * time.Millisecond)
+        var act Action
         if comp == "Easy" {
-            game.MakeEasyPlay()
+            act = game.MakeEasyPlay()
         } else {
-            game.MakeMediumPlay()
+            act = game.MakeMediumPlay()
+        }
+        if !act.IsNull() && act.Verb != DeferVerb {
+            SendInfo(0, game)
         }
     }
 }

@@ -52,12 +52,22 @@ func (game *Game) MakeGameInfo(player int) *GameInfo {
     }
 }
 
-func SendInfo(conn *websocket.Conn, player int, game *Game) {
+func SendInfo(player int, game *Game) {
     game.mutex.Lock()
+    conn := game.conns[player]
     info := game.MakeGameInfo(player)
     game.mutex.Unlock()
     jsn, _ := json.Marshal(info)
     conn.WriteMessage(websocket.TextMessage, jsn)   
+}
+
+func (game *Game) WriteGame() {
+    jsn, _ := json.Marshal(game.Recording)
+    ts := time.Now().Unix()
+    err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
+    if err != nil {
+        fmt.Println("Error writing game file")
+    }
 }
 
 func Socket(w http.ResponseWriter, r *http.Request) {
@@ -76,13 +86,14 @@ func Socket(w http.ResponseWriter, r *http.Request) {
         }
         // Do we ever get any other types of messages?
         if msgType != websocket.TextMessage {
+            log.Println("Not a text message")
             return
         }
         var req Request
         json.NewDecoder(bytes.NewBuffer(msg)).Decode(&req)
+        //log.Println(string(msg))
         switch req.Type {
             case "List" : {
-                log.Println("here")
                 keys := make([]int, 0)
                 for key := range games {
                     if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
@@ -93,14 +104,13 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 err = conn.WriteMessage(websocket.TextMessage, jsn)
                 if err != nil {
                     log.Println(err)
-                    return
+                    continue
                 }
             }
             case "New": {
-                log.Println("here2")
                 if player != -1 {
                     log.Println("Player already joined")
-                    return
+                    continue
                 }
                 player = 0
                 game := InitGame(NextGameIdx(), req.Computer)
@@ -108,54 +118,60 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 if req.Computer != "Human" {
                     game.StartComputer(req.Computer)
                 }
-                SendInfo(conn, player, game)
+                game.conns[0] = conn
+                SendInfo(player, game)
             }
             case "Join": {
                 if player != -1 {
                     log.Println("Player already joined")
-                    return
+                    continue
                 }
                 player = 1
                 game := games[req.Game]
                 if game == nil { 
                     log.Println("No such game", req.Game)
-                    return
+                    continue
                 }
                 game.joined = true
-                SendInfo(conn, player, game)
+                game.conns[1] = conn
+                SendInfo(player, game)
             }
             case "Action": {
                 game := games[req.Game]
                 if game == nil { 
                     log.Println("No such game", req.Game)
-                    return
+                    continue
+                }
+                if game.Versus == "Human" && !game.joined {
+                    log.Println("Player not joined")
+                    continue
                 }
                 if game.Recording.Winner != -1 {
                     log.Println("Game already won")
-                    return
+                    continue
                 }
                 // TODO multiple computer players multiple threads
                 game.mutex.Lock()
                 // Bad action sent?
                 if req.Action.Card == Card(0) && req.Action.Covering == Card(0) {
+                    log.Println("Bad action")
                     game.mutex.Unlock()
-                    return
+                    continue
                 }
                 fmt.Printf("%s\n", req.Action.ToStr())
                 game.TakeAction(*req.Action) 
                 // Check winner, write game if done
-                if game.CheckWinner() != -1 {
-                    jsn, _ := json.Marshal(game.Recording)
-                    ts := time.Now().Unix()
-                    err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
-                    if err != nil {
-                        fmt.Println("Error writing game file")
-                    }
+                // Also in computer.go checks for computer games
+                if game.Versus == "Human" && game.CheckWinner() != -1 {
+                    game.WriteGame()
                 }
                 game.mutex.Unlock()
                 // Send update to all
-                for p := range [2]int{0,1} {
-                    SendInfo(conn, p, game)
+                if game.Versus == "Human" { 
+                    SendInfo(0, game)
+                    SendInfo(1, game)
+                } else {
+                    SendInfo(0, game)
                 }
             }
         }
@@ -175,6 +191,7 @@ func Headers(fn HFunc) HFunc {
     }
 }
 func ServeStatic(w http.ResponseWriter, req *http.Request, file string) {
+    w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
     http.ServeFile(w, req, file)
 }
 

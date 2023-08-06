@@ -176,6 +176,7 @@ class Game {
             console.log(json);
             this.init(json);
             updateKnowledge(json.Memory);
+            this.pending = false;
             if (json.Winner != -1 ) {
                 this.winner = json.Winner;
                 this.conn.close();
@@ -184,7 +185,6 @@ class Game {
         this.dragging = null;
         this.pending = false;
         this.winner = -1;
-        console.log(this.winner);
         this.initButtons();
     }
 
@@ -311,15 +311,18 @@ class Game {
         if (y > 150 && y < 350) {
             area = 'board';
         }
-        this.players.forEach(p => {
-            p.hand.forEach(c => {
-                if (c.contains(e)) {
-                    card = c;
-                    area = 'hand';
-                    player = p;
-                }
+        // Keep both players for debug
+        if (!this.dragging) {
+            this.players.forEach(p => {
+                p.hand.forEach(c => {
+                    if (c.contains(e)) {
+                        card = c;
+                        area = 'hand';
+                        player = p;
+                    }
+                });
             });
-        });
+        }
         this.board.plays.forEach((c, i) => {
             if (this.board.covers[i]) {
                 return;
@@ -348,7 +351,7 @@ class Game {
         //let taken = false;
         const [card, area, player] = this.over(e);
         const actions = this.dragging.player.actions;
-        if (game.pending || game.winner !== null) {
+        if (game.pending || game.winner !== -1) {
             // ... Do nothing
             // Wait for response for last action
         } else if (card && area == 'board') {
@@ -444,9 +447,9 @@ class Action {
     }
 
     take() {
-        const msg = {Type: Action, Game: game.id, Action: this.orig};
+        const msg = {Type: 'Action', Game: game.id, Action: this.orig};
         game.pending = true;
-        game.conn.send(msg);
+        game.conn.send(JSON.stringify(msg));
     }
 }
 

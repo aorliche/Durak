@@ -4,10 +4,10 @@ import (
     "encoding/json"
     "fmt"
     "math/rand"
-    //"reflect"
-    //"strings"
     "sync"
     "time"
+    
+    "github.com/gorilla/websocket"
 )
 
 type Verb int
@@ -88,6 +88,10 @@ type Action struct {
     Verb Verb
     Card Card
     Covering Card
+}
+
+func (a Action) IsNull() bool {
+    return a.Card == 0 && a.Covering == 0
 }
 
 func (a Action) ToStr() string {
@@ -310,6 +314,7 @@ type Game struct {
     Versus string
     joined bool
     mutex sync.Mutex
+    conns []*websocket.Conn
 }
 
 type Recording struct {
@@ -347,6 +352,7 @@ func InitGame(key int, versus string) *Game {
         Recording: recording,
         Versus: versus,
         joined: false,
+        conns: make([]*websocket.Conn, 2),
     }
 }
 
