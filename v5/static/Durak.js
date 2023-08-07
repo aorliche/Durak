@@ -177,7 +177,7 @@ class Game {
             this.init(json);
             updateKnowledge(json.Memory);
             this.pending = false;
-            if (json.Winner != -1 ) {
+            if (json.Winner != -1) {
                 this.winner = json.Winner;
                 this.conn.close();
             }

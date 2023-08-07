@@ -72,8 +72,7 @@ func (game *Game) StartComputer(comp string) {
 
 func (game *Game) RandomLoop(comp string) {
     for {
-        if game.CheckWinner() != -1 {
-            game.WriteGame()
+        if game.Recording.Winner != -1 {
             break
         }
         time.Sleep(100 * time.Millisecond)
@@ -83,8 +82,13 @@ func (game *Game) RandomLoop(comp string) {
         } else {
             act = game.MakeMediumPlay()
         }
+        game.CheckWinner()
         if !act.IsNull() && act.Verb != DeferVerb {
             SendInfo(0, game)
+        }
+        if game.Recording.Winner != -1 {
+            game.WriteGame()
+            break
         }
     }
 }
