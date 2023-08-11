@@ -65,13 +65,14 @@ func (orig *GameState) Eval(cur *GameState, me int, emptyDeck bool) int {
     return v
 }
 
+// Applied on end of midgame hand or unknown card play
 func (cur *GameState) HandsPenalty(me int) int {
     v := 0
-    if len(cur.Hands[me]) > 6 {
-        v -= len(cur.Hands[me])-6
+    if len(cur.Hands[me]) > 4 {
+        v -= len(cur.Hands[me])-4
     }
-    if len(cur.Hands[1-me]) > 6 {
-        v += len(cur.Hands[1-me])-6
+    if len(cur.Hands[1-me]) > 4 {
+        v += len(cur.Hands[1-me])-4
     }
     return v
 }
@@ -137,7 +138,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         } else if act.Card == UNK_CARD && (act.Verb == PlayVerb || act.Verb == CoverVerb) {
             if !playedUnkCard {
                 playedUnkCard = true
-                evals[2*i] = orig.Eval(s, me, deckSize < 3)
+                evals[2*i] = orig.Eval(s, me, deckSize < 3) + s.HandsPenalty(me)
                 chains[2*i] = []Action{act}
             } 
         // Pickup - Opponent's move will determine evaluation
@@ -145,7 +146,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         } else if act.Verb == PickupVerb {
             c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, deckSize)
             if len(s.Hands[me]) > 6 {
-                r += len(s.Plays)+NumNotUnk(s.Covers)
+                r += len(s.Plays)+NumNotUnk(s.Covers)+len(s.Hands[me])-6
             }
             evals[2*i+1] = r
             chains[2*i+1] = append(c, act)
