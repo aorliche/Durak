@@ -5,6 +5,7 @@ import (
     "time" 
 )
 
+// Empriically chosen
 func (state *GameState) DepthLimit() int {
     nCards := len(state.Hands[0]) + len(state.Hands[1]);
     if nCards > 18 {
@@ -60,7 +61,15 @@ func (orig *GameState) Eval(cur *GameState, me int, emptyDeck bool) int {
         }
     }
     if emptyDeck {
-        v += 2 - len(cur.Hands[me]) + len(cur.Hands[1-me])
+        v += 2
+        // Hands modifier
+        for i := 0; i < len(orig.Hands); i++ {
+            if i == me {
+                v -= len(cur.Hands[me])
+            } else {
+                v += len(cur.Hands[i])
+            }
+        }
     }
     return v
 }
@@ -68,11 +77,15 @@ func (orig *GameState) Eval(cur *GameState, me int, emptyDeck bool) int {
 // Applied on end of midgame hand or unknown card play
 func (cur *GameState) HandsPenalty(me int) int {
     v := 0
-    if len(cur.Hands[me]) > 4 {
-        v -= len(cur.Hands[me])-4
-    }
-    if len(cur.Hands[1-me]) > 4 {
-        v += len(cur.Hands[1-me])-4
+    for i := 0; i < len(cur.Hands); i++ {
+        if len(cur.Hands[i]) <= 4 {
+            continue
+        }
+        if i == me {
+            v -= len(cur.Hands[me])-4
+        } else {
+            v += len(cur.Hands[i])-4
+        }
     }
     return v
 }
@@ -98,8 +111,9 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         return nil, 0
     }
     // Default values should be 0 and nil
-    evals := make([]int, 2*len(acts))
-    chains := make([][]Action, 2*len(acts))
+    np := len(cur.Hands)
+    evals := make([]int, np*len(acts))
+    chains := make([][]Action, np*len(acts))
     playedUnkCard := false
     for i, act := range acts {
         s := cur.Clone();
@@ -108,26 +122,37 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         if deckSize == 0 && len(s.Hands[me]) == 0 {
             return []Action{act}, 1000
         }
-        // You don't get actions but opponent does
+        // You don't get actions but opponents do
         if act.Verb == DeferVerb {
-            c, r := orig.EvalNode(cur, 1-me, depth+1, dlimAdj, deckSize)
-            evals[2*i+1] = r
-            chains[2*i+1] = append(c, act)
+            for j := 0; j < np; j++ {
+                if j == me {
+                    continue    
+                }
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                evals[np*i+j] = r
+                chains[np*i+j] = append(c, act)
+            }
         // End hand
         } else if act.Verb == PassVerb {
             // Go to the end of game
             if deckSize == 0 {
-                // You passed with opponent picking up
-                // You will play next turn
+                // Defender picking up
+                // All others can play
+                // NOTE: Action is Pass, so cur.PickingUp is valid
                 if cur.PickingUp {
-                    c, r := orig.EvalNode(s, me, depth+1, dlimAdj, 0)
-                    evals[2*i] = r + s.HandsPenalty(me)
-                    chains[2*i] = append(c, act)
-                // Opponent successfully defended and will go next
+                    for j := 0; j < np; j++ {
+                        if j == cur.Defender {
+                            continue
+                        }
+                        c, r := orig.EvalNode(s, s.Attacker, depth+1, dlimAdj, 0)
+                        evals[np*i+j] = r + s.HandsPenalty(me)
+                        chains[np*i+j] = append(c, act)
+                    }
+                // Defender successfully defended and will go next
                 } else {
-                    c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, 0) 
-                    evals[2*i+1] = r + s.HandsPenalty(1-me)
-                    chains[2*i+1] = append(c, act)
+                    c, r := orig.EvalNode(s, cur.Defender, depth+1, dlimAdj, 0) 
+                    evals[np*i+cur.Defender] = r + s.HandsPenalty(cur.Defender)
+                    chains[np*i+cur.Defender] = append(c, act)
                 }
             // Go per-hand
             } else {
@@ -138,60 +163,48 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         } else if act.Card == UNK_CARD && (act.Verb == PlayVerb || act.Verb == CoverVerb) {
             if !playedUnkCard {
                 playedUnkCard = true
-                evals[2*i] = orig.Eval(s, me, deckSize < 3) + s.HandsPenalty(me)
-                chains[2*i] = []Action{act}
+                evals[np*i+me] = orig.Eval(s, me, deckSize < 3) + s.HandsPenalty(me)
+                chains[np*i+me] = []Action{act}
             } 
-        // Pickup - Opponent's move will determine evaluation
+        // Pickup - Opponents' moves will determine evaluation
         // Penalize taking cards with zero deck size (end of game)
         } else if act.Verb == PickupVerb {
-            c, r := orig.EvalNode(s, 1-me, depth+1, dlimAdj, deckSize)
-            if len(s.Hands[me]) > 6 {
-                r += len(s.Plays)+NumNotUnk(s.Covers)+len(s.Hands[me])-6
+            for j := 0; j < np; j++ {
+                if j == me {
+                    continue
+                }
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                if len(s.Hands[me]) > 6 {
+                    r += len(s.Plays)+NumNotUnk(s.Covers)+len(s.Hands[me])-6
+                }
+                evals[np*i+j] = r
+                chains[np*i+j] = append(c, act)
             }
-            evals[2*i+1] = r
-            chains[2*i+1] = append(c, act)
         // Ordinary action
         } else {
-            c, r := orig.EvalNode(s, me, depth+1, dlimAdj, deckSize)
-            if c != nil {
-                evals[2*i] = r
-                chains[2*i] = append(c, act)
-            }
-            c, r = orig.EvalNode(s, 1-me, depth+1, dlimAdj, deckSize)
-            if c != nil {
-                evals[2*i+1] = r
-                chains[2*i+1] = append(c, act)
+            for j := 0; j < np; j++ {
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                if c != nil {
+                    evals[np*i+j] = r
+                    chains[np*i+j] = append(c, act)
+                }
             }
         }
     }
     best := -10000
     besti := 0
     for i, _ := range acts {
-        if chains[2*i] == nil && chains[2*i+1] == nil {
-            continue
-        }
-        if chains[2*i] == nil {
-            e := -evals[2*i+1]
+        for j := 0; j < np; j++ {
+            if chains[np*i+j] == nil {
+                continue
+            }
+            e := evals[np*i+j]
+            if j != me {
+                e *= -1
+            }
             if e > best {
-                besti = 2*i+1
+                besti = np*i+j
                 best = e
-            }
-        } else if chains[2*i+1] == nil {
-            e := evals[2*i]
-            if e > best {
-                besti = 2*i
-                best = e
-            }
-        } else {
-            e1 := evals[2*i]
-            e2 := -evals[2*i+1]
-            if e1 > best {
-                besti = 2*i
-                best = e1
-            }
-            if e2 > best {
-                besti = 2*i+1
-                best = e2
             }
         }
     }

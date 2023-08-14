@@ -28,11 +28,15 @@
     margin-left: 20px;
     width: 180px;
 }
-#durak-list select {
+select[name='durak-list-select'] {
     margin-top: 10px;
     margin-bottom: 10px;
     width: 160px;
     min-height: 200px;
+}
+select[name='durak-num-players'] {
+    margin-top: 10px;
+    margin-bottom: 10px;
 }
 #durak-memory {
     margin-left: 20px;

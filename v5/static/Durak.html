@@ -20,15 +20,23 @@
         </div>
         <div id='durak-list'>
             <div>
-                <label for='durak-list-select'>Open Games</label>
+                <h3>New Game</h3>
+                <label for='durak-num-players'>Number of Players</label>
+                <select name='durak-num-players'>
+                    <option value='2'>2</option>
+                    <option value='3'>3</option>
+                    <option value='4'>4</option>
+                </select><br>
+                <button id='new'>New Game</button><br>
+                <button id='easy'>Easy Computer</button><br>
+                <button id='medium'>Medium Computer</button><br>
+                <button id='quit'>Quit</button>
             </div>
-            <select name='durak-list-select' multiple></select>
             <div>
-                <button id='new'>New Game</button>
+                <h3>Join Game</h3>
+                <label for='durak-list-select'>Open Games</label><br>
+                <select name='durak-list-select' multiple></select><br>
                 <button id='join'>Join Game</button>
-                <button id='easy'>Easy Computer</button>
-                <button id='medium'>Medium Computer</button>
-                <!--<button id='quit'>Quit</button>-->
             </div>
         </div>
         <div id='durak-memory'>

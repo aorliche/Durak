@@ -28,7 +28,7 @@ func NextGameIdx() int {
 type Request struct {
    Type string 
    Game int
-   Computer string
+   Players []string
    Action *Action
 }
 
@@ -42,11 +42,13 @@ type GameInfo struct {
 }
 
 func (game *Game) MakeGameInfo(player int) *GameInfo {
+    acts := make([][]Action, len(game.State.Hands)) 
+    acts[player] = game.State.PlayerActions(player)
     return &GameInfo{
         Key: game.Key,
         State: game.MaskUnknownCards(player),
         Memory: game.Memory,
-        Actions: [][]Action{game.State.PlayerActions(0), game.State.PlayerActions(1)},
+        Actions: acts,
         DeckSize: len(game.Deck),
         Winner: game.Recording.Winner,
     }
@@ -68,6 +70,15 @@ func (game *Game) WriteGame() {
     err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
     if err != nil {
         fmt.Println("Error writing game file")
+    }
+}
+
+func (game *Game) SendInfoHumans() {
+    for i,p := range game.Players {
+        // Check nil for automated test
+        if p == "Human" && game.conns[i] != nil {
+            SendInfo(i, game)
+        }
     }
 }
 
@@ -97,8 +108,16 @@ func Socket(w http.ResponseWriter, r *http.Request) {
             case "List" : {
                 keys := make([]int, 0)
                 for key := range games {
-                    if games[key].Versus == "Human" && !games[key].joined && games[key].Recording.Winner == -1 {
-                        keys = append(keys, key) 
+                    // Check if has not been won and has open slots
+                    game := games[key]
+                    if game.Recording.Winner == -1 {
+                        continue
+                    }
+                    for i := 0; i < len(game.joined); i++ {
+                        if !game.joined[i] {
+                            keys = append(keys, key) 
+                            break
+                        }
                     }
                 }
                 jsn, _ := json.Marshal(keys)
@@ -114,12 +133,16 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     continue
                 }
                 player = 0
-                game := InitGame(NextGameIdx(), req.Computer)
+                game := InitGame(NextGameIdx(), req.Players)
                 games[game.Key] = game
-                if req.Computer != "Human" {
-                    game.StartComputer(req.Computer)
+                for i,typ := range req.Players {
+                    if typ != "Human" {
+                        game.StartComputer(typ, i)
+                        game.joined[i] = true
+                    }
                 }
                 game.conns[0] = conn
+                game.joined[0] = true
                 SendInfo(player, game)
             }
             case "Join": {
@@ -127,14 +150,22 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     log.Println("Player already joined")
                     continue
                 }
-                player = 1
                 game := games[req.Game]
                 if game == nil { 
                     log.Println("No such game", req.Game)
                     continue
                 }
-                game.joined = true
-                game.conns[1] = conn
+                for i := 1; i < len(game.joined); i++ {
+                    if !game.joined[i] {
+                        player = i
+                    }
+                }
+                if player == -1 {
+                    log.Println("No open slots")
+                    continue
+                }
+                game.joined[player] = true
+                game.conns[player] = conn
                 SendInfo(player, game)
             }
             case "Action": {
@@ -143,7 +174,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     log.Println("No such game", req.Game)
                     continue
                 }
-                if game.Versus == "Human" && !game.joined {
+                if game.Players[req.Action.Player] == "Human" && !game.joined[req.Action.Player] {
                     log.Println("Player not joined")
                     continue
                 }
@@ -152,29 +183,23 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     continue
                 }
                 // TODO multiple computer players multiple threads
-                game.mutex.Lock()
                 // Bad action sent?
                 if req.Action.Card == Card(0) && req.Action.Covering == Card(0) {
                     log.Println("Bad action")
-                    game.mutex.Unlock()
                     continue
                 }
                 fmt.Printf("%s\n", req.Action.ToStr())
+                game.mutex.Lock()
                 game.TakeAction(*req.Action) 
+                game.mutex.Unlock()
                 game.CheckWinner()
                 // Check winner, write game if done
                 // Also in computer.go checks for computer games
-                if game.Versus == "Human" && game.Recording.Winner != -1 {
+                if game.Recording.Winner != -1 {
                     game.WriteGame()
                 }
-                game.mutex.Unlock()
-                // Send update to all
-                if game.Versus == "Human" { 
-                    SendInfo(0, game)
-                    SendInfo(1, game)
-                } else {
-                    SendInfo(0, game)
-                }
+                // Send update to all humans
+                game.SendInfoHumans()
             }
         }
     }

@@ -83,7 +83,8 @@ function newGame(id, computer) {
     if (game) {
         return;
     }
-    game = new Game(id, computer);
+    const num = $('select[name="durak-num-players"]').selectedIndex+2;
+    game = new Game(id, computer, num);
 }
 
 class Board {
@@ -142,13 +143,16 @@ class Board {
 }
 
 class Game {
-    constructor(id, computer) {
+    constructor(id, computer, players) {
         // You are always player 0 in the client
         // Must remap if necessary when talking to the server
         // join is useful for when id is not -1 for both players
         this.id = id;
         this.join = id == -1 ? false : true;
-        this.players = [new Player(0, true), new Player(1, true)]; 
+        this.players = [];
+        for (let i=0; i<players; i++) {
+            this.players.push(new Player(i));
+        }
         this.board = new Board();
         this.firstMessage = false;
         // Connect to socket
@@ -489,8 +493,34 @@ class Player {
     }
 
     layout() {
+        const num = game.players.length;
+        let cx, scaling;
+        switch (num) {
+            case 2: {
+                cx = 400;
+                scaling = 1;
+                break;
+            }
+            case 3: {
+                switch (this.n) {
+                    case 0: cx = 400; break;
+                    case 1: cx = 267; break;
+                    case 2: cx = 534; break;
+                }
+                scaling = (this.n == 0) ? 1 : 0.5;
+                break;
+            }
+            case 4: {
+                switch (this.n) {
+                    case 0: case 2: cx = 400; break;
+                    case 1: cx = 200; break;
+                    case 3: cx = 600; break;
+                }
+                scaling = (this.n == 0) ? 1 : 0.33;
+                break;
+            }
+        }
         const n = this.hand.length;
-        const cx = 400;
         const cy = this.n == 0 ? 500 : 0;
         const tmult = this.n == 0 ? 1 : -1;
         for (let i=0; i<n; i++) {
@@ -502,6 +532,7 @@ class Player {
             this.hand[i].x = px;
             this.hand[i].y = cy;
             this.hand[i].theta = theta*tmult;
+            this.hand[i].scaling = scaling;
         }
     }
 
@@ -537,8 +568,9 @@ class Card {
 
     draw(ctx) {
         const img = this.i == -1 ? cardBackImage : cardImages[this.i];
+        const scaling = this.scaling ?? 1;
         this.xform((x,y,w,h,m) => {
-            ctx.drawImage(img,0,0,w,h);
+            ctx.drawImage(img,0,0,w*scaling,h*scaling);
         });
     }
 
@@ -611,7 +643,7 @@ window.addEventListener('load', e => {
             const json = JSON.parse(e.data);
             json.sort((a,b) => a-b);
 
-            const select = $('#durak-list select');
+            const select = $('select[name="durak-list-select"]');
             const toAdd = [];
             const games = [...select.options].map(opt => parseInt(opt.value));
             if (game && games.includes(game.id)) {
@@ -653,7 +685,7 @@ window.addEventListener('load', e => {
     });
 
     $('#join').addEventListener('click', e => {
-        const select = $('#durak-list select');
+        const select = $('select[name="durak-list-select"]');
         const opt = select.options[select.selectedIndex];
         if (!opt) {
             return;
