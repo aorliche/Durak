@@ -79,12 +79,14 @@ function loadImages(cb) {
 	cardBackImage.src = 'cards/backs/astronaut.png';
 }
 
-function newGame(id, computer) {
+function newGame(id) {
     if (game) {
         return;
     }
-    const num = $('select[name="durak-num-players"]').selectedIndex+2;
-    game = new Game(id, computer, num);
+    const numPlayers = $('select[name="durak-num-players"]').selectedIndex+2;
+    const numComputers = $('select[name="durak-num-computers"]').selectedIndex;
+    const difficulty = $('select[name="difficulty"]').selectedIndex == 0 ? 'Easy' : 'Medium';
+    game = new Game(id, difficulty, numPlayers, numComputers);
 }
 
 class Board {
@@ -142,8 +144,10 @@ class Board {
     }
 }
 
+// TODO don't always be player zero 
+// TODO Redo this constructor for players and computers
 class Game {
-    constructor(id, computer, players) {
+    constructor(id, difficulty, numPlayers, numComputers) {
         // You are always player 0 in the client
         // Must remap if necessary when talking to the server
         // join is useful for when id is not -1 for both players
@@ -681,7 +685,7 @@ window.addEventListener('load', e => {
     .catch(err => console.log(err));
 
     $('#new').addEventListener('click', e => {
-        newGame(-1, 'Human');
+        newGame(-1);
     });
 
     $('#join').addEventListener('click', e => {
@@ -690,15 +694,18 @@ window.addEventListener('load', e => {
         if (!opt) {
             return;
         }
-        newGame(parseInt(opt.value), 'human');
+        newGame(parseInt(opt.value));
     });
 
-    $('#easy').addEventListener('click', e => {
-        newGame(-1, 'Easy');
-    });
+    $('select[name="durak-num-players"]').addEventListener('change', e => {
+        let numPlayers = $('select[name="durak-num-players"]').selectedIndex;
+        numPlayers = parseInt(numPlayers)+2;
+        let numComputers = $('select[name="durak-num-computers"]').selectedIndex;
+        numComputers = parseInt(numComputers);
 
-    $('#medium').addEventListener('click', e => {
-        newGame(-1, 'Medium');
+        if (numComputers >= numPlayers) {
+            $('select[name="durak-num-computers"]').selectedIndex = numPlayers-1;
+        }
     });
 
     /*$('#quit').addEventListener('click', e => {
