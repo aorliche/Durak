@@ -195,7 +195,7 @@ class Game {
             }
             console.log(json);
             this.init(json);
-            updateKnowledge(json.Memory);
+            //updateKnowledge(json.Memory);
             this.pending = false;
             if (json.Winner != -1) {
                 this.winner = json.Winner;
@@ -229,7 +229,7 @@ class Game {
         if (this.trump) this.trump.draw(ctx, true);
         if (this.deck) {
             this.deck.draw(ctx);
-            drawText(ctx, `${this.decksize}`, {x: 700, y: 60}, 'red', 'bold 48px sans', 'navy');
+            drawText(ctx, `${this.decksize}`, {x: 700, y: 120}, 'red', 'bold 48px sans', 'navy');
         }
         this.players.forEach(p => {
             p.draw(ctx);
@@ -304,12 +304,12 @@ class Game {
     layout() {
         if (this.deck) {
             this.deck.x = 700;
-            this.deck.y = 40;
+            this.deck.y = 100;
             this.deck.theta = 3.14/2;
         }
         if (this.trump) {
             this.trump.x = 700;
-            this.trump.y = 80;
+            this.trump.y = 140;
             this.trump.theta = 0;
         }
     }
@@ -515,11 +515,13 @@ class Player {
 
     layout() {
         const num = game.players.length;
-        let cx, scaling;
+        let cx, scaling, fudge, dx;
         switch (num) {
             case 2: {
                 cx = 400;
                 scaling = 1;
+                fudge = 0;
+                dx = 40;
                 break;
             }
             case 3: {
@@ -528,7 +530,9 @@ class Player {
                     case 1: cx = 267; break;
                     case 2: cx = 534; break;
                 }
-                scaling = (this.n == 0) ? 1 : 0.5;
+                scaling = (this.n == 0) ? 1 : 0.7;
+                fudge = 40;
+                dx = 30;
                 break;
             }
             case 4: {
@@ -537,7 +541,9 @@ class Player {
                     case 1: cx = 200; break;
                     case 3: cx = 600; break;
                 }
-                scaling = (this.n == 0) ? 1 : 0.33;
+                scaling = (this.n == 0) ? 1 : 0.4;
+                fudge = 50;
+                dx = 30;
                 break;
             }
         }
@@ -548,10 +554,11 @@ class Player {
             if (this.hand[i].dragging) {
                 continue;
             }
-            const px = cx+(i-(n-1)/2)*40;
+            const px = this.n == 0 ? cx+(i-(n-1)/2)*40 : cx+(i-(n-1)/2)*dx;
             const theta = (i-(n-1)/2)*0.1;
             this.hand[i].x = px;
-            this.hand[i].y = cy;
+            // not sure why fudge is necessary
+            this.hand[i].y = this.n == 0 ? cy : cy+fudge; 
             this.hand[i].theta = theta*tmult;
             this.hand[i].scaling = scaling;
         }
@@ -613,7 +620,7 @@ class Card {
     }
 }
 
-function updateKnowledge(json) {
+/*function updateKnowledge(json) {
     const p0 = $('#p0-hand');
     const p1 = $('#p1-hand');
     const discard = $('#discard');
@@ -646,7 +653,7 @@ function updateKnowledge(json) {
             discard.append(cardBackImage.cloneNode());
         }
     }
-}
+}*/
 
 window.addEventListener('load', e => {
     loadImages();
