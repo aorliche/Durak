@@ -154,13 +154,13 @@ class Game {
         this.id = id;
         this.join = id == -1 ? false : true;
         this.players = [];
-        for (let i=0; i<players; i++) {
+        this.player = -1;
+        for (let i=0; i<numPlayers; i++) {
             this.players.push(new Player(i));
         }
         this.board = new Board();
-        this.firstMessage = false;
         // Connect to socket
-        this.conn = new WebSocket(`ws://${ip}:8000/ws`);
+        this.conn = new WebSocket(`ws://${location.host}/ws`);
         this.conn.onopen = () => {
             const msg = {};
             if (this.join) {
@@ -168,17 +168,29 @@ class Game {
                 msg.Game = id;
             } else {
                 msg.Type = 'New';
-                msg.Computer = computer;
+                msg.Players = [];
+                for (let i=0; i<numPlayers; i++) {
+                    if (i >= numPlayers-numComputers) {
+                        msg.Players.push(difficulty);
+                    } else {
+                        msg.Players.push('Human');
+                    }
+                }
             }
             this.conn.send(JSON.stringify(msg));
         }
         // Get messages
         this.conn.onmessage = e => {
             const json = JSON.parse(e.data);
-            if (!this.firstMessage) {
-                this.firstMessage = true;
-                if (!this.join) {
-                    this.id = json.Key;
+            if (this.id == -1) {
+                this.id = json.Key;
+            }
+            if (this.player == -1) {
+                for (let i=0; i<numPlayers; i++) {
+                    if (json.Actions[i]) {
+                        this.player = i;
+                        break;
+                    }
                 }
             }
             console.log(json);
@@ -410,14 +422,19 @@ class Game {
             this.trump = null;
         }
         this.board.init(info.State);
-        const [p0, p1] = this.join ? [1, 0] : [0, 1];
-        const i = this.players[0].getHovering();
-        this.players[0].hand = info.State.Hands[p0].map(c => new Card(c));
-        this.players[1].hand = info.State.Hands[p1].map(c => new Card(c));
-        this.players[0].actions = info.Actions[p0].map(a => new Action(a));
-        this.players[1].actions = info.Actions[p1].map(a => new Action(a));
+        // Human is player zero in the game, but some other number on the server
+        // delta is this.player
+        // Only client player is sent actions
+        const covi = this.players[0].getHovering();
+        for (let i=0; i<this.players.length; i++) {
+            const j = (i+this.player) % this.players.length;
+            this.players[i].hand = info.State.Hands[j].map(c => new Card(c));
+            if (i == 0) {
+                this.players[0].actions = info.Actions[this.player].map(a => new Action(a));
+            }
+        }
         this.updateButtons();
-        this.players[0].setHovering(i);
+        this.players[0].setHovering(covi);
     }
 
     updateButtons() {
@@ -634,55 +651,47 @@ function updateKnowledge(json) {
 window.addEventListener('load', e => {
     loadImages();
 
-    fetch('/Durak.ip')
-    .then(resp => resp.json())
-    .then(json => {
-        ip = json;
+    // Separate connection for calling list
+    const conn = new WebSocket(`ws://${location.host}/ws`);
 
-        // Separate connection for calling list
-        const conn = new WebSocket(`ws://${ip}:8000/ws`);
+    conn.onmessage = e => {
+        // List of integer game ids
+        const json = JSON.parse(e.data);
+        json.sort((a,b) => a-b);
 
-        conn.onmessage = e => {
-            // List of integer game ids
-            const json = JSON.parse(e.data);
-            json.sort((a,b) => a-b);
-
-            const select = $('select[name="durak-list-select"]');
-            const toAdd = [];
-            const games = [...select.options].map(opt => parseInt(opt.value));
-            if (game && games.includes(game.id)) {
-                for (let i=0; i<select.options.length; i++) {
-                    const opt = select.options[i];
-                    if (parseInt(opt.value) == game.id) {
-                        select.remove(i);
-                        break;
-                    }
-                }
-            } 
+        const select = $('select[name="durak-list-select"]');
+        const toAdd = [];
+        const games = [...select.options].map(opt => parseInt(opt.value));
+        if (game && games.includes(game.id)) {
             for (let i=0; i<select.options.length; i++) {
                 const opt = select.options[i];
-                if (!json.includes(parseInt(opt.value))) {
-                    console.log(opt.value);
-                    select.remove(i--);
+                if (parseInt(opt.value) == game.id) {
+                    select.remove(i);
+                    break;
                 }
             }
-            json.forEach(key => {
-                if (!games.includes(key) && !(game && game.id == key)) {
-                    const opt = document.createElement('option');
-                    opt.value = key;
-                    opt.innerHTML = `Game ${key}`;
-                    select.appendChild(opt);
-                }
-            });
+        } 
+        for (let i=0; i<select.options.length; i++) {
+            const opt = select.options[i];
+            if (!json.includes(parseInt(opt.value))) {
+                console.log(opt.value);
+                select.remove(i--);
+            }
         }
+        json.forEach(key => {
+            if (!games.includes(key) && !(game && game.id == key)) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerHTML = `Game ${key}`;
+                select.appendChild(opt);
+            }
+        });
+    }
 
-        setInterval(e => {
-            if (!ip) return;
-            if (!conn.readyState == 1) return;
-            conn.send(JSON.stringify({Type: 'List'}));
-        }, 1000);
-    })
-    .catch(err => console.log(err));
+    setInterval(e => {
+        if (!conn.readyState == 1) return;
+        conn.send(JSON.stringify({Type: 'List'}));
+    }, 1000);
 
     $('#new').addEventListener('click', e => {
         newGame(-1);

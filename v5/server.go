@@ -110,7 +110,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 for key := range games {
                     // Check if has not been won and has open slots
                     game := games[key]
-                    if game.Recording.Winner == -1 {
+                    if game.Recording.Winner != -1 {
                         continue
                     }
                     for i := 0; i < len(game.joined); i++ {
