@@ -1,7 +1,7 @@
 package main
 
 import (
-    //"encoding/json"
+    "encoding/json"
     "log"
     "testing"
     "time"
@@ -109,26 +109,50 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     game.StartComputer("Easy", 0)
     game.StartComputer("Easy", 1)
     game.StartComputer("Easy", 2)
-    for game.Recording.Winner == -1 {
-        time.Sleep(1000 * time.Millisecond)
-        jsn, _ := json.Marshal(game.Recording)
-        log.Println(string(jsn))
+    for !game.CheckGameOver() {
+        time.Sleep(100 * time.Millisecond)
+        acts := make([]int, 3)
+        for i := 0; i < len(acts); i++ {
+            acts[i] = len(game.State.PlayerActions(i))
+        }
+        log.Println(len(game.Deck), acts, game.State.ToStr(), game.Recording.Winners)
     }
+    jsn, _ := json.Marshal(game.Recording)
+    log.Println(string(jsn))
 }*/
 
-func TestTwoMediumComputerRandomGame(t *testing.T) {
+func TestThreeMediumComputerRandomGame(t *testing.T) {
+    game := InitGame(0, []string{"Medium", "Medium", "Medium"})
+    game.StartComputer("Medium", 0)
+    game.StartComputer("Medium", 1)
+    game.StartComputer("Medium", 2)
+    for !game.CheckGameOver() {
+        time.Sleep(1000 * time.Millisecond)
+        acts := make([]int, 3)
+        for i := 0; i < len(acts); i++ {
+            acts[i] = len(game.State.PlayerActions(i))
+        }
+        log.Println(len(game.Deck), acts, game.State.ToStr(), game.Recording.Winners)
+    }
+    jsn, _ := json.Marshal(game.Recording)
+    log.Println(string(jsn))
+}
+
+/*func TestTwoMediumComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium"})
     game.StartComputer("Medium", 0)
     game.StartComputer("Medium", 1)
-    for game.Recording.Winner == -1 {
+    for !game.CheckGameOver() {
         time.Sleep(1000 * time.Millisecond)
         acts := make([]int, 2)
-        for i := 0; i < 2; i++ {
+        for i := 0; i < len(acts); i++ {
             acts[i] = len(game.State.PlayerActions(i))
         }
         log.Println(len(game.Deck), acts, game.State.ToStr())
     }
-}
+    jsn, _ := json.Marshal(game.Recording)
+    log.Println(string(jsn))
+}*/
 
 /*func TestPlayerTwoMediumAttacker(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium"})
@@ -143,7 +167,7 @@ func TestTwoMediumComputerRandomGame(t *testing.T) {
     game.StartComputer("Medium", 0)
     game.StartComputer("Medium", 1)
     game.StartComputer("Medium", 2)
-    for game.Recording.Winner == -1 {
+    for game.CheckGameOver() {
         time.Sleep(1000 * time.Millisecond)
         acts := make([]int, 3)
         for i := 0; i < 3; i++ {

@@ -3,6 +3,7 @@ package main
 import (
     "encoding/json"
     "fmt"
+    //"log"
     "math/rand"
     "sync"
     "time"
@@ -115,6 +116,8 @@ type GameState struct {
     Plays []Card
     Covers []Card
     Hands [][]Card
+    Dir int
+    gamePtr *Game
     start time.Time
 }
 
@@ -139,12 +142,22 @@ func InitGameState(trump Card, hands [][]Card) *GameState {
         Plays: make([]Card, 0),
         Covers: make([]Card, 0),
         Hands: hands,
+        Dir: 1,
+        gamePtr: nil,
         start: time.Now(),
     }
 }
     
 func (state *GameState) AttackerActions(player int) []Action {
     res := make([]Action, 0)
+    // Player has already passed
+    if state.Passed[player] {
+        return res
+    }
+    // Player has already won
+    if IndexOf(state.gamePtr.Recording.Winners, player) != -1 {
+        return []Action{Action{player, PassVerb, UNK_CARD, UNK_CARD}}
+    }
     if len(state.Plays) == 0 {
         // Only initial attacker may play first
         if state.Attacker != player {
@@ -155,21 +168,21 @@ func (state *GameState) AttackerActions(player int) []Action {
         }
         return res
     }
-    // Player has already passed
-    if state.Passed[player] {
-        return res
-    }
-    for _,card := range state.Hands[player] {
-        // Allow play unknown card in search
-        if card == UNK_CARD {
-            res = append(res, Action{player, PlayVerb, card, UNK_CARD})
-            continue
-        }
-        // Regular cards
-        for i := 0; i < len(state.Plays); i++ {
-            if card.Rank() == state.Plays[i].Rank() || (card != UNK_CARD && card.Rank() == state.Covers[i].Rank()) {
+    // Don't allow playing more cards than defender can defend
+    unmetCards := len(state.Plays) - NumNotUnk(state.Covers)
+    if len(state.Hands[state.Defender]) - unmetCards > 0 {
+        for _,card := range state.Hands[player] {
+            // Allow play unknown card in search
+            if card == UNK_CARD {
                 res = append(res, Action{player, PlayVerb, card, UNK_CARD})
-                break
+                continue
+            }
+            // Regular cards
+            for i := 0; i < len(state.Plays); i++ {
+                if card.Rank() == state.Plays[i].Rank() || (card != UNK_CARD && card.Rank() == state.Covers[i].Rank()) {
+                    res = append(res, Action{player, PlayVerb, card, UNK_CARD})
+                    break
+                }
             }
         }
     }
@@ -226,6 +239,15 @@ func (state *GameState) DefenderActions(player int) []Action {
     return res
 }
 
+func IndexOf[T comparable](slice []T, val T) int {
+    for i, v := range slice {
+        if v == val {
+            return i
+        }
+    }
+    return -1
+}
+
 func (state *GameState) PlayerActions(player int) []Action {
     if player == state.Defender {
         return state.DefenderActions(player)
@@ -240,28 +262,25 @@ func (state *GameState) RandomAction() Action {
     return acts[rand.Intn(len(acts))]
 }
 
-func (state *GameState) GetDirection() int {
-    ab := state.Defender - state.Attacker
-    if ab == 1 || ab == -1 {
-        return ab
+func (state *GameState) NextRole(player int) int {
+    for i := 0; i < len(state.Hands); i++ {
+        p := player+((i+1)*state.Dir)
+        if p < 0 {
+            p += len(state.Hands)
+        }
+        if p >= len(state.Hands) {
+            p -= len(state.Hands)
+        }
+        if IndexOf(state.gamePtr.Recording.Winners, p) == -1 {
+            return p
+        }
     }
-    if state.Defender > state.Attacker {
-        return -1
-    }
-    return 1
-}
-
-func (state *GameState) NextRole(player int, inc int) int {
-    player = (player + inc) % len(state.Hands)
-    if player < 0 {
-        player += len(state.Hands)
-    }
-    return player
+    panic("NextRole failed")
 }
 
 func (state *GameState) AllPassed() bool {
     for i := 0; i < len(state.Hands); i++ {
-        if !state.Passed[i] && state.Defender != i {
+        if !state.Passed[i] && state.Defender != i && IndexOf(state.gamePtr.Recording.Winners, i) == -1 {
             return false
         }
     }
@@ -269,6 +288,7 @@ func (state *GameState) AllPassed() bool {
 }
 
 func (state *GameState) TakeAction(action Action) {
+    state.gamePtr.CheckGameOver()
     switch action.Verb {
         case PlayVerb: {
             state.Plays = append(state.Plays, action.Card)
@@ -292,6 +312,7 @@ func (state *GameState) TakeAction(action Action) {
             RemoveCard(&state.Hands[action.Player], action.Card)
             state.Attacker, state.Defender = state.Defender, state.Attacker
             state.Deferring = make([]bool, len(state.Hands))
+            state.Dir *= -1
         }
         case PickupVerb: {
             state.PickingUp = true
@@ -304,7 +325,6 @@ func (state *GameState) TakeAction(action Action) {
             if !state.AllPassed() {
                 break
             }
-            dir := state.GetDirection()
             if state.PickingUp {
                 for i := 0; i < len(state.Plays); i++ {
                     state.Hands[state.Defender] = append(state.Hands[state.Defender], state.Plays[i])
@@ -312,11 +332,11 @@ func (state *GameState) TakeAction(action Action) {
                         state.Hands[state.Defender] = append(state.Hands[state.Defender], state.Covers[i])
                     }
                 }
-                state.Attacker = state.NextRole(state.Attacker, 2*dir) 
-                state.Defender = state.NextRole(state.Defender, 2*dir)
+                state.Attacker = state.NextRole(state.Defender) 
+                state.Defender = state.NextRole(state.Attacker)
             } else {
-                state.Attacker = state.NextRole(state.Attacker, dir) 
-                state.Defender = state.NextRole(state.Defender, dir)
+                state.Attacker = state.NextRole(state.Attacker) 
+                state.Defender = state.NextRole(state.Attacker)
             }
             state.Plays = make([]Card, 0)
             state.Covers = make([]Card, 0)
@@ -345,12 +365,14 @@ func (state *GameState) Clone() *GameState {
         Plays: append(make([]Card, 0), state.Plays...),
         Covers: append(make([]Card, 0), state.Covers...),
         Hands: hands,
+        Dir: state.Dir,
+        gamePtr: state.gamePtr,
         start: state.start,
     }
 }
 
 func (state *GameState) ToStr() string {
-    jsn, _ := json.Marshal(state)
+    jsn, _ := json.Marshal(state.Clone())
     return string(jsn)
 }
 
@@ -377,7 +399,7 @@ type Recording struct {
     Deck []Card
     Hands [][]Card
     Actions []Action
-    Winner int
+    Winners []int
 }
 
 func InitGame(key int, players []string) *Game {
@@ -397,9 +419,9 @@ func InitGame(key int, players []string) *Game {
         Deck: append(make([]Card, 0), deck...),
         Hands: handsRec,
         Actions: make([]Action, 0),
-        Winner: -1,
+        Winners: make([]int, 0),
     }
-    return &Game{
+    game := &Game{
         Key: key, 
         State: InitGameState(deck[0], handsState),
         Deck: deck,
@@ -413,42 +435,55 @@ func InitGame(key int, players []string) *Game {
         joined: make([]bool, numPlayers),
         conns: make([]*websocket.Conn, numPlayers),
     }
+    game.State.gamePtr = game
+    return game
 }
 
-func (game *Game) CheckWinner() int {
-    if game.Recording.Winner != -1 {
-        return game.Recording.Winner
-    }
+func (game *Game) CheckGameOver() bool {
     if len(game.Deck) > 0 {
-        return -1
+        return false
+    }
+    if len(game.Recording.Winners) == len(game.Players)-1 {
+        return true
     }
     for i := 0; i < len(game.State.Hands); i++ {
         if len(game.State.Hands[i]) == 0 {
-            game.Recording.Winner = i
-            return i
+            if IndexOf(game.Recording.Winners, i) == -1 {
+                game.Recording.Winners = append(game.Recording.Winners, i)
+            }
         }
     }
-    return -1
+    return len(game.Recording.Winners) == len(game.Players)-1 
 }
 
+// TODO Deal in correct order
 func (game *Game) Deal(player int) {
    for len(game.Deck) > 0 && len(game.State.Hands[player]) < 6 {
        game.State.Hands[player] = append(game.State.Hands[player], game.Deck[len(game.Deck)-1])
        game.Deck = game.Deck[:len(game.Deck)-1]
    } 
    game.Memory.Sizes[player] = len(game.State.Hands[player])
+   // If some player has zero cards and we don't deal them any
+   // Adjust winners, attackers, defenders
+   game.CheckGameOver()
+   if IndexOf(game.Recording.Winners, game.State.Attacker) == -1 {
+       game.State.Attacker = game.State.NextRole(game.State.Attacker)
+       game.State.Defender = game.State.NextRole(game.State.Attacker)
+   }
+   if IndexOf(game.Recording.Winners, game.State.Defender) == -1 {
+       game.State.Defender = game.State.NextRole(game.State.Defender)
+       game.State.Attacker = game.State.NextRole(game.State.Defender)
+   }
 }
 
 func (game *Game) TakeAction(action Action) bool {
+    // Check that game isn't over
+    if game.CheckGameOver() {
+        return false
+    }
     // Check that action is still legal
     acts := game.State.PlayerActions(action.Player)
-    found := false
-    for _, act := range acts {
-        if act == action {
-            found = true
-        }
-    }
-    if !found {
+    if IndexOf(acts, action) == -1 {
         return false
     }
     // No strings of Defer verbs in recordings

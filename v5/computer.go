@@ -7,11 +7,11 @@ import (
 )
 
 func (game *Game) MakeEasyPlay(player int) Action {
+    game.mutex.Lock()
     var act Action
-    if game.CheckWinner() != -1 {
+    if game.CheckGameOver() {
         return act
     }
-    game.mutex.Lock()
     acts := game.State.PlayerActions(player)
     rand.Shuffle(len(acts), func(i, j int) {
         acts[i], acts[j] = acts[j], acts[i]
@@ -40,12 +40,12 @@ func (game *Game) MakeEasyPlay(player int) Action {
 
 func (game *Game) MakeMediumPlay(player int) Action {
     var act Action
-    if game.CheckWinner() != -1 {
+    if game.CheckGameOver() {
         return act
     }
     var state *GameState
     game.mutex.Lock()
-    if len(game.Deck) > 1 || len(game.State.Hands) > 2 {
+    if len(game.Deck) > 1 || (len(game.State.Hands) - len(game.Recording.Winners)) > 2 {
         state = game.MaskUnknownCards(player)
     } else {
         state = game.State
@@ -68,7 +68,7 @@ func (game *Game) MakeMediumPlay(player int) Action {
 func (game *Game) StartComputer(comp string, player int) {
     go func() {
         for {
-            if game.Recording.Winner != -1 {
+            if game.CheckGameOver() {
                 break
             }
             time.Sleep(100 * time.Millisecond)
@@ -78,12 +78,12 @@ func (game *Game) StartComputer(comp string, player int) {
             } else if comp == "Medium" {
                 act = game.MakeMediumPlay(player)
             }
-            game.CheckWinner()
+            game.CheckGameOver()
             // Send info to human players
             if !act.IsNull() && act.Verb != DeferVerb {
                 game.SendInfoHumans()
             }
-            if game.Recording.Winner != -1 {
+            if game.CheckGameOver() {
                 game.WriteGame()
                 break
             }

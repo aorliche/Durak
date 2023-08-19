@@ -38,7 +38,7 @@ type GameInfo struct {
     Memory *Memory
     Actions [][]Action
     DeckSize int
-    Winner int
+    Winners []int
 }
 
 func (game *Game) MakeGameInfo(player int) *GameInfo {
@@ -50,7 +50,7 @@ func (game *Game) MakeGameInfo(player int) *GameInfo {
         Memory: game.Memory,
         Actions: acts,
         DeckSize: len(game.Deck),
-        Winner: game.Recording.Winner,
+        Winners: game.Recording.Winners,
     }
 }
 
@@ -58,7 +58,7 @@ func SendInfo(player int, game *Game) {
     game.mutex.Lock()
     conn := game.conns[player]
     info := game.MakeGameInfo(player)
-    log.Println(game.Recording.Winner)
+    log.Println(game.Recording.Winners)
     jsn, _ := json.Marshal(info)
     conn.WriteMessage(websocket.TextMessage, jsn)   
     game.mutex.Unlock()
@@ -69,7 +69,7 @@ func (game *Game) WriteGame() {
     ts := time.Now().Unix()
     err := os.WriteFile(fmt.Sprintf("games/%d.durak", ts), jsn, 0644)
     if err != nil {
-        fmt.Println("Error writing game file")
+        log.Println("Error writing game file")
     }
 }
 
@@ -110,7 +110,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 for key := range games {
                     // Check if has not been won and has open slots
                     game := games[key]
-                    if game.Recording.Winner != -1 {
+                    if game.CheckGameOver() {
                         continue
                     }
                     for i := 0; i < len(game.joined); i++ {
@@ -178,24 +178,23 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     log.Println("Player not joined")
                     continue
                 }
-                if game.Recording.Winner != -1 {
+                if game.CheckGameOver() {
                     log.Println("Game already won")
                     continue
                 }
-                // TODO multiple computer players multiple threads
                 // Bad action sent?
                 if req.Action.Card == Card(0) && req.Action.Covering == Card(0) {
                     log.Println("Bad action")
                     continue
                 }
-                fmt.Printf("%s\n", req.Action.ToStr())
+                log.Printf("%s\n", req.Action.ToStr())
                 game.mutex.Lock()
                 game.TakeAction(*req.Action) 
                 game.mutex.Unlock()
-                game.CheckWinner()
+                game.CheckGameOver()
                 // Check winner, write game if done
                 // Also in computer.go checks for computer games
-                if game.Recording.Winner != -1 {
+                if game.CheckGameOver() {
                     game.WriteGame()
                 }
                 // Send update to all humans
