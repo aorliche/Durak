@@ -61,6 +61,19 @@ func TestSearchEnd(t *testing.T) {
     }
 }
 
+func TestSearchEndSimple1(t *testing.T) {
+    game := InitGame(0, []string{"Human", "Medium"})
+    game.Deck = make([]Card, 0)
+    game.State.Trump = 1
+    game.State.Hands[1] = []Card{Card(1), Card(2)}
+    game.State.Hands[0] = []Card{Card(5), Card(6)}
+    game.MaskUnknownCards(0)
+    c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
+    if len(c) == 0 {
+        t.Errorf("No action chain for search")
+    }
+}
+
 func TestMaskUnkownCardStart(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
     state := game.MaskUnknownCards(0)

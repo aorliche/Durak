@@ -298,8 +298,9 @@ func (state *GameState) TakeAction(action Action) {
             state.Deferring = make([]bool, len(state.Hands))
         }
         case PassVerb: {
-            // Handled in Game.TakeAction
-            //state.Passed[action.Player] = true
+            // Handled in Game.TakeAction 
+            // Need to be in both places for Medium search
+            state.Passed[action.Player] = true
             if !state.AllPassed() {
                 break
             }
