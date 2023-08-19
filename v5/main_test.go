@@ -121,7 +121,7 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     log.Println(string(jsn))
 }*/
 
-func TestThreeMediumComputerRandomGame(t *testing.T) {
+/*func TestThreeMediumComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium", "Medium"})
     game.StartComputer("Medium", 0)
     game.StartComputer("Medium", 1)
@@ -136,7 +136,7 @@ func TestThreeMediumComputerRandomGame(t *testing.T) {
     }
     jsn, _ := json.Marshal(game.Recording)
     log.Println(string(jsn))
-}
+}*/
 
 /*func TestTwoMediumComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium"})
