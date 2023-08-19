@@ -58,10 +58,10 @@ func SendInfo(player int, game *Game) {
     game.mutex.Lock()
     conn := game.conns[player]
     info := game.MakeGameInfo(player)
-    game.mutex.Unlock()
     log.Println(game.Recording.Winner)
     jsn, _ := json.Marshal(info)
     conn.WriteMessage(websocket.TextMessage, jsn)   
+    game.mutex.Unlock()
 }
 
 func (game *Game) WriteGame() {
