@@ -93,12 +93,12 @@ func (cur *GameState) HandsPenalty(me int) int {
 
 func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]Action, int) {
     dlimAdj := dlim
-    deckSize := len(cur.gamePtr.Deck)
     if depth == 0 {
         cur = orig.Clone()
         dlimAdj = orig.DepthLimit()
         orig.start = time.Now()
-    } 
+    }
+    deckSize := len(cur.gamePtr.Deck)
     // Iterative crappening
     elapsed := time.Now().Sub(orig.start)
     if elapsed.Seconds() > 2 {

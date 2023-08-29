@@ -441,7 +441,7 @@ func InitGame(key int, players []string) *Game {
         Winners: make([]int, 0),
     }
     game := &Game{
-        Key: key, 
+        Key: key,
         State: InitGameState(deck[0], handsState),
         Deck: deck,
         Memory: &Memory {

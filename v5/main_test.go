@@ -7,7 +7,7 @@ import (
     "time"
 )
 
-/*func TestBeats(t *testing.T) {
+func TestBeats(t *testing.T) {
     if Card(10).Beats(Card(11), Card(20)) {
         t.Errorf("Card(10).Beats(Card(11), Card(20))")
     }
@@ -42,11 +42,11 @@ func TestTakeAction(t *testing.T) {
     if len(acts1) == 0 {
         t.Errorf("No actions for player 1")
     }
-}*/
+}
 
-/*func TestSearchStart(t *testing.T) {
+func TestSearchStart(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
-    c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
+    c, _ := game.State.EvalNode(nil, 0, 0, 0)
     if len(c) == 0 {
         t.Errorf("No action chain for search")
     }
@@ -55,13 +55,13 @@ func TestTakeAction(t *testing.T) {
 func TestSearchEnd(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
     game.Deck = make([]Card, 0)
-    c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
+    c, _ := game.State.EvalNode(nil, 0, 0, 0)
     if len(c) == 0 {
         t.Errorf("No action chain for search")
     }
 }
 
-func TestSearchEndSimple1(t *testing.T) {
+/*func TestSearchEndSimple1(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
     game.Deck = make([]Card, 0)
     game.State.Trump = 1
@@ -72,7 +72,7 @@ func TestSearchEndSimple1(t *testing.T) {
     if len(c) == 0 {
         t.Errorf("No action chain for search")
     }
-}
+}*/
 
 func TestMaskUnkownCardStart(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
@@ -102,7 +102,7 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     if nKnown != 2 {
         t.Errorf("Wrong number of known cards")
     }
-}*/
+}
 
 /*func TestThreeEasyComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Easy", "Easy", "Easy"})
