@@ -194,17 +194,18 @@ class Game {
                 }
             }
             console.log(json);
+            // Should call update?
             this.init(json);
             //updateKnowledge(json.Memory);
             this.pending = false;
-            if (json.Winner != -1) {
-                this.winner = json.Winner;
+            this.winners = json.Winners;
+            if (this.winners.length == numPlayers-1) {
                 this.conn.close();
             }
         }
         this.dragging = null;
         this.pending = false;
-        this.winner = -1;
+        this.winners = [];
         this.initButtons();
     }
 
@@ -235,11 +236,10 @@ class Game {
             p.draw(ctx);
         });
         this.board.draw(ctx);
-        if (this.winner !== -1) {
-            let text = "You lose...";
-            if ((this.join && this.winner == 1) || (!this.join && this.winner == 0)) {
-                text = "You win!";
-            }
+        const iwon = this.winners.includes(this.player);  
+        const ilost = this.winners.length == this.players.length-1;
+        if (iwon || ilost) {
+            let text = iwon ? "You win!" : "You lose...";
             drawText(ctx, `${text}`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
         }
         if (this.dragging) {
@@ -371,7 +371,7 @@ class Game {
         //let taken = false;
         const [card, area, player] = this.over(e);
         const actions = this.dragging.player.actions;
-        if (game.pending || game.winner !== -1) {
+        if (game.pending || game.winners.length == game.players.length-1) {
             // ... Do nothing
             // Wait for response for last action
         } else if (card && area == 'board') {

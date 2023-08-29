@@ -485,11 +485,11 @@ func (game *Game) Deal(player int) {
    // If some player has zero cards and we don't deal them any
    // Adjust winners, attackers, defenders
    game.CheckGameOver()
-   if IndexOf(game.Recording.Winners, game.State.Attacker) == -1 {
+   if IndexOf(game.Recording.Winners, game.State.Attacker) != -1 {
        game.State.Attacker = game.State.NextRole(game.State.Attacker)
        game.State.Defender = game.State.NextRole(game.State.Attacker)
    }
-   if IndexOf(game.Recording.Winners, game.State.Defender) == -1 {
+   if IndexOf(game.Recording.Winners, game.State.Defender) != -1 {
        game.State.Defender = game.State.NextRole(game.State.Defender)
        game.State.Attacker = game.State.NextRole(game.State.Defender)
    }

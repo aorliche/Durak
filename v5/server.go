@@ -58,7 +58,8 @@ func SendInfo(player int, game *Game) {
     game.mutex.Lock()
     conn := game.conns[player]
     info := game.MakeGameInfo(player)
-    log.Println(game.Recording.Winners)
+    //log.Println(info.State.ToStr())
+    //log.Println(game.Recording.Winners)
     jsn, _ := json.Marshal(info)
     conn.WriteMessage(websocket.TextMessage, jsn)   
     game.mutex.Unlock()
@@ -191,7 +192,6 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 game.mutex.Lock()
                 game.TakeAction(*req.Action) 
                 game.mutex.Unlock()
-                game.CheckGameOver()
                 // Check winner, write game if done
                 // Also in computer.go checks for computer games
                 if game.CheckGameOver() {
