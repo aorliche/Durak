@@ -49,29 +49,18 @@ func (game *Game) MakeMediumPlay(player int) Action {
     if len(game.Deck) > 1 || (len(game.State.Hands) - len(game.Recording.Winners)) > 2 {
         state = game.MaskUnknownCards(player)
     } else {
-        state = game.State
+        state = game.State.Clone()
     }
     game.mutex.Unlock()
-    // Mutex starvation avoidance?
-    if IndexOf(game.Recording.Winners, player) != -1 {
-        acts := game.State.PlayerActions(player)
-        if len(acts) > 0 {
-            act = acts[rand.Intn(len(acts))]
-            game.mutex.Lock()
-            game.TakeAction(act)
-            game.mutex.Unlock()
+    c, r := state.EvalNode(state, player, 0, 0)
+    if len(c) > 0 {
+        act = c[len(c)-1]
+        if act.Verb != DeferVerb {
+            log.Println(r, act.ToStr())
         }
-    } else {
-        c, r := state.EvalNode(state, player, 0, 0, len(game.Deck))
-        if len(c) > 0 {
-            act = c[len(c)-1]
-            if act.Verb != DeferVerb {
-                log.Println(r, act.ToStr())
-            }
-            game.mutex.Lock()
-            game.TakeAction(act)
-            game.mutex.Unlock()
-        }
+        game.mutex.Lock()
+        game.TakeAction(act)
+        game.mutex.Unlock()
     }
     return act
 }

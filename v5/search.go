@@ -91,8 +91,9 @@ func (cur *GameState) HandsPenalty(me int) int {
     return v
 }
 
-func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, deckSize int) ([]Action, int) {
+func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]Action, int) {
     dlimAdj := dlim
+    deckSize := len(cur.gamePtr.Deck)
     if depth == 0 {
         cur = orig.Clone()
         dlimAdj = orig.DepthLimit()
@@ -103,6 +104,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
     if elapsed.Seconds() > 2 {
         dlimAdj -= (int(elapsed.Seconds()) - 2)/2
     }
+    // You've already won and don't take actions
+    if cur.Won[me] {
+        return nil, 0
+    }
     if depth > dlimAdj {
         return make([]Action, 0), orig.Eval(cur, me, deckSize < 3)
     }
@@ -112,7 +117,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         return nil, 0
     }
     // If everyone else has already won, you lost
-    if cur.gamePtr.CheckGameOver() {
+    if cur.CheckGameOver() {
         return make([]Action, 0), -1000
     }
     // Default values should be 0 and nil
@@ -125,7 +130,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         s.TakeAction(act);
         // Check win (getting rid of cards)
         if deckSize == 0 && len(s.Hands[me]) == 0 {
-            return []Action{act}, 200
+            return []Action{act}, 20
         }
         // You don't get actions but opponents do
         if act.Verb == DeferVerb {
@@ -133,7 +138,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
                 if j == me {
                     continue    
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
                 evals[np*i+j] = r
                 chains[np*i+j] = append(c, act)
             }
@@ -149,13 +154,13 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
                         if j == cur.Defender {
                             continue
                         }
-                        c, r := orig.EvalNode(s, s.Attacker, depth+1, dlimAdj, 0)
+                        c, r := orig.EvalNode(s, s.Attacker, depth+1, dlimAdj)
                         evals[np*i+j] = r + s.HandsPenalty(me)
                         chains[np*i+j] = append(c, act)
                     }
                 // Defender successfully defended and will go next
                 } else {
-                    c, r := orig.EvalNode(s, cur.Defender, depth+1, dlimAdj, 0) 
+                    c, r := orig.EvalNode(s, cur.Defender, depth+1, dlimAdj)
                     evals[np*i+cur.Defender] = r + s.HandsPenalty(cur.Defender)
                     chains[np*i+cur.Defender] = append(c, act)
                 }
@@ -178,7 +183,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
                 if j == me {
                     continue
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
                 if len(s.Hands[me]) > 6 {
                     r += len(s.Plays)+NumNotUnk(s.Covers)+len(s.Hands[me])-6
                 }
@@ -188,7 +193,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, dec
         // Ordinary action
         } else {
             for j := 0; j < np; j++ {
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, deckSize)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)

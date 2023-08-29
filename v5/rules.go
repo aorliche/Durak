@@ -112,13 +112,14 @@ type GameState struct {
     PickingUp bool
     Deferring []bool
     Passed []bool
+    Won []bool
     Trump Card
     Plays []Card
     Covers []Card
     Hands [][]Card
     Dir int
-    gamePtr *Game
     start time.Time
+    gamePtr *Game
 }
 
 func NumNotUnk(cards []Card) int {
@@ -138,13 +139,14 @@ func InitGameState(trump Card, hands [][]Card) *GameState {
         PickingUp: false, 
         Deferring: make([]bool, len(hands)),
         Passed: make([]bool, len(hands)),
+        Won: make([]bool, len(hands)),
         Trump: trump,
         Plays: make([]Card, 0),
         Covers: make([]Card, 0),
         Hands: hands,
         Dir: 1,
-        gamePtr: nil,
         start: time.Now(),
+        gamePtr: nil,
     }
 }
     
@@ -155,7 +157,7 @@ func (state *GameState) AttackerActions(player int) []Action {
         return res
     }
     // Player has already won
-    if IndexOf(state.gamePtr.Recording.Winners, player) != -1 {
+    if state.Won[player] {
         return []Action{Action{player, PassVerb, UNK_CARD, UNK_CARD}}
     }
     if len(state.Plays) == 0 {
@@ -271,7 +273,7 @@ func (state *GameState) NextRole(player int) int {
         if p >= len(state.Hands) {
             p -= len(state.Hands)
         }
-        if IndexOf(state.gamePtr.Recording.Winners, p) == -1 {
+        if !state.Won[p] {
             return p
         }
     }
@@ -280,15 +282,28 @@ func (state *GameState) NextRole(player int) int {
 
 func (state *GameState) AllPassed() bool {
     for i := 0; i < len(state.Hands); i++ {
-        if !state.Passed[i] && state.Defender != i && IndexOf(state.gamePtr.Recording.Winners, i) == -1 {
+        if !state.Passed[i] && state.Defender != i && !state.Won[i] {
             return false
         }
     }
     return true
 }
 
+func (state *GameState) CheckGameOver() bool {
+    if len(state.gamePtr.Deck) > 0 {
+        return false
+    }
+    n := 0
+    for i := 0; i < len(state.Hands); i++ {
+        if len(state.Hands[i]) == 0 {
+            state.Won[i] = true
+            n++
+        }
+    }
+    return n == len(state.Hands)-1
+}
+
 func (state *GameState) TakeAction(action Action) {
-    state.gamePtr.CheckGameOver()
     switch action.Verb {
         case PlayVerb: {
             state.Plays = append(state.Plays, action.Card)
@@ -296,6 +311,7 @@ func (state *GameState) TakeAction(action Action) {
             RemoveCard(&state.Hands[action.Player], action.Card)
             // Sets to false
             state.Deferring = make([]bool, len(state.Hands))
+            state.CheckGameOver()
         }
         case CoverVerb: {
             for i := 0; i < len(state.Plays); i++ {
@@ -305,6 +321,7 @@ func (state *GameState) TakeAction(action Action) {
             }
             RemoveCard(&state.Hands[action.Player], action.Card)
             state.Deferring = make([]bool, len(state.Hands))
+            state.CheckGameOver()
         }
         case ReverseVerb: {
             state.Plays = append(state.Plays, action.Card)
@@ -313,6 +330,7 @@ func (state *GameState) TakeAction(action Action) {
             state.Attacker, state.Defender = state.Defender, state.Attacker
             state.Deferring = make([]bool, len(state.Hands))
             state.Dir *= -1
+            state.CheckGameOver()
         }
         case PickupVerb: {
             state.PickingUp = true
@@ -361,6 +379,7 @@ func (state *GameState) Clone() *GameState {
         PickingUp: state.PickingUp,
         Deferring: append(make([]bool, 0), state.Deferring...),
         Passed: append(make([]bool, 0), state.Passed...),
+        Won: append(make([]bool, 0), state.Won...),
         Trump: state.Trump,
         Plays: append(make([]Card, 0), state.Plays...),
         Covers: append(make([]Card, 0), state.Covers...),

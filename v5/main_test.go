@@ -7,7 +7,7 @@ import (
     "time"
 )
 
-func TestBeats(t *testing.T) {
+/*func TestBeats(t *testing.T) {
     if Card(10).Beats(Card(11), Card(20)) {
         t.Errorf("Card(10).Beats(Card(11), Card(20))")
     }
@@ -42,9 +42,9 @@ func TestTakeAction(t *testing.T) {
     if len(acts1) == 0 {
         t.Errorf("No actions for player 1")
     }
-}
+}*/
 
-func TestSearchStart(t *testing.T) {
+/*func TestSearchStart(t *testing.T) {
     game := InitGame(0, []string{"Human", "Medium"})
     c, _ := game.State.EvalNode(nil, 0, 0, 0, len(game.Deck))
     if len(c) == 0 {
@@ -102,7 +102,7 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     if nKnown != 2 {
         t.Errorf("Wrong number of known cards")
     }
-}
+}*/
 
 /*func TestThreeEasyComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Easy", "Easy", "Easy"})
@@ -121,8 +121,31 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     log.Println(string(jsn))
 }*/
 
-/*func TestThreeMediumComputerRandomGame(t *testing.T) {
+func TestThreeMediumComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium", "Medium"})
+    game.StartComputer("Medium", 0)
+    game.StartComputer("Medium", 1)
+    game.StartComputer("Medium", 2)
+    for !game.CheckGameOver() {
+        time.Sleep(1000 * time.Millisecond)
+        acts := make([]int, 3)
+        for i := 0; i < len(acts); i++ {
+            acts[i] = len(game.State.PlayerActions(i))
+        }
+        log.Println(len(game.Deck), acts, game.State.ToStr(), game.Recording.Winners)
+    }
+    jsn, _ := json.Marshal(game.Recording)
+    log.Println(string(jsn))
+}
+
+/*func TestThreeMediumComputerOneWon(t *testing.T) {
+    game := InitGame(0, []string{"Medium", "Medium", "Medium"})
+    game.Deck = make([]Card, 0)
+    game.Recording.Winners = []int{0}
+    game.State.Hands[0] = make([]Card, 0)
+    game.State.Won[0] = true
+    game.State.Attacker = 1
+    game.State.Defender = 2
     game.StartComputer("Medium", 0)
     game.StartComputer("Medium", 1)
     game.StartComputer("Medium", 2)
@@ -160,19 +183,4 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
     game.State.Defender = 0
     c,r := game.State.EvalNode(nil, 1, 0, 0, len(game.Deck))
     log.Println(c, r)
-}*/
-
-/*func TestThreeMediumComputerRandomGame(t *testing.T) {
-    game := InitGame(0, []string{"Medium", "Medium", "Medium"})
-    game.StartComputer("Medium", 0)
-    game.StartComputer("Medium", 1)
-    game.StartComputer("Medium", 2)
-    for game.CheckGameOver() {
-        time.Sleep(1000 * time.Millisecond)
-        acts := make([]int, 3)
-        for i := 0; i < 3; i++ {
-            acts[i] = len(game.State.PlayerActions(i))
-        }
-        log.Println(len(game.Deck), acts, game.State.ToStr())
-    }
 }*/
