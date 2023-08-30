@@ -6,22 +6,36 @@
     <script src="Durak.js"></script>
 </head>
 <body>
-    <h1>Computer Durak</h1>
     <div id='durak'>
-        <div id='durak-game'>
-            <div id='top'>
-                <div id='pickingup' style='display:none'>Opponent picking up</div>
-            </div>
-            <canvas id='durak-canvas' width='800' height='500'></canvas>
-            <div id='bottom'>
-                <button id='pass'>Pass</button>
-                <button id='pickup'>Pickup</button>
+        <div>
+            <h1>Computer Durak</h1>
+            <div id='durak-game'>
+                <div id='top'>
+                    <div id='pickingup' style='display:none'>Opponent picking up</div>
+                </div>
+                <canvas id='durak-canvas' width='800' height='500'></canvas>
+                <div id='bottom'>
+                    <button id='pass'>Pass</button>
+                    <button id='pickup'>Pickup</button>
+                </div>
             </div>
         </div>
-        <div id='durak-list'>
+        <div id='game-controls'>
             <div>
                 <h3>New Game</h3>
-                <label for='durak-num-players'>Number of Players</label>
+                <button id='human'>Add Human</button>
+                <button id='easy'>Add Easy</button>
+                <button id='medium'>Add Medium</button>
+                <hr>
+                <div id='players'>
+                    <div id='number'>4 Players</div>
+                    <div class='player'><div class='type human'>Human</div></div>
+                    <div class='player'><div class='type easy'>Easy</div><button>Delete</button></div>
+                    <div class='player'><div class='type medium'>Medium</div><button>Delete</button></div>
+                    <div class='player'><div class='type medium'>Medium</div><button>Delete</button></div>
+                </div>
+                <button id='start'>Start Game</button>
+                <!--<label for='durak-num-players'>Number of Players</label>
                 <select name='durak-num-players'>
                     <option value='2'>2</option>
                     <option value='3'>3</option>
@@ -40,24 +54,22 @@
                     <option value='medium'>Medium</option>
                 </select><br> 
                 <button id='new'>New Game</button><br>
-                <button id='quit'>Quit</button>
+                <button id='quit'>Quit</button>-->
             </div>
             <div>
-                <h3>Join Game</h3>
-                <label for='durak-list-select'>Open Games</label><br>
+                <h3>Open Games</h3>
                 <select name='durak-list-select' multiple></select><br>
                 <button id='join'>Join Game</button>
             </div>
+            <div id='links'>
+                <a href='https://en.wikipedia.org/wiki/Durak'>Rules</a> | 
+                <a href='#'>Changes in this version</a> | 
+                <a href='#'>About</a>
+            </div>
         </div>
-        <!--<div id='durak-memory'>
-            <h4>Known Info</h4>
-            <p>Player 0</p>
-            <div id='p0-hand'></div>
-            <p>Player 1</p>
-            <div id='p1-hand'></div>
-            <p>Discard</p>
-            <div id='discard'></div>
-        </div>-->
+    </div>
+    <div id='footer'>
+        <p>&#169; 2023 Anton Orlichenko<br></p>
     </div>
 </body>
 </html>
