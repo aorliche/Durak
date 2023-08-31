@@ -24,7 +24,7 @@
 }
 #game-controls {
     margin-left: 20px;
-    width: 260px;
+    width: 280px;
 }
 #game-controls button {
 }
@@ -67,6 +67,9 @@
 #start {
     margin-top: 20px;
 }
+#players {
+    min-height: 130px;
+}
 #links {
     margin-top: 20px;
 }
@@ -77,7 +80,7 @@
 select[name='durak-list-select'] {
     margin-top: 10px;
     margin-bottom: 10px;
-    width: 260px;
+    width: 280px;
     min-height: 200px;
 }
 select[name='durak-num-players'] {
