@@ -220,7 +220,8 @@ func (state *GameState) DefenderActions(player int) []Action {
         return res
     }
     revRank := state.ReverseRank()
-    if revRank != -1 && NumNotUnk(state.Covers) == 0 {
+    // Only allow reverse when defender can potentially meet it
+    if revRank != -1 && NumNotUnk(state.Covers) == 0 && len(state.Plays)+1 > len(state.Hands[state.Attacker]) {
         for _,card := range state.Hands[player] {
             if card.Rank() == revRank {
                 res = append(res, Action{player, ReverseVerb, card, UNK_CARD})
