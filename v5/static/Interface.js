@@ -3,6 +3,13 @@ window.addEventListener("load", function(){
     const flavor = ['Poppins', 'Wiggins', 'Emote', 'Worts', 'Biggly', 'Smyte'];
 
     $('#name').value = flavor[Math.floor(Math.random() * flavor.length)];
+    $('#qs').addEventListener('click', e => {
+        if ($('#qs-div').style.display == 'block') {
+            $('#qs-div').style.display = 'none';
+        } else {
+            $('#qs-div').style.display = 'block';
+        }
+    });
 
     function updateNumber() {
         $('#number').innerText = `${players.length} Players`;
