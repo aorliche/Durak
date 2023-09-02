@@ -1,5 +1,8 @@
 window.addEventListener("load", function(){
     const players = ['Human'];
+    const flavor = ['Poppins', 'Wiggins', 'Emote', 'Worts', 'Biggly', 'Smyte'];
+
+    $('#name').value = flavor[Math.floor(Math.random() * flavor.length)];
 
     function updateNumber() {
         $('#number').innerText = `${players.length} Players`;
