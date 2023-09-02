@@ -262,8 +262,8 @@ class Game {
                         ctx.drawImage(shieldImage, 330, 380);
                         ctx.drawImage(swordImage, 330, 100);
                     }
-                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 375, y: 400, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 375, y: 120, ljust: true}, 'black', 'bold 16px sans');
                     break;
                 }
                 case 3: {
@@ -285,9 +285,9 @@ class Game {
                     if (this.defender == (this.player+2)%this.names.length) {
                         ctx.drawImage(shieldImage, 490, 100);
                     }
-                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 230, y: 120}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 560, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 375, y: 400, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 205, y: 120, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 535, y: 120, ljust: true}, 'black', 'bold 16px sans');
                     break;
                 }
                 case 4: {
@@ -315,10 +315,10 @@ class Game {
                     if (this.defender == (this.player+3)%this.names.length) {
                         ctx.drawImage(shieldImage, 580, 100);
                     }
-                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 150, y: 120}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
-                    drawText(ctx, `${nextName(this.names, this.player, 3)}`, {x: 650, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 375, y: 400, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 125, y: 120, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 375, y: 120, ljust: true}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 3)}`, {x: 625, y: 120, ljust: true}, 'black', 'bold 16px sans');
                     break;
                 }
             }
