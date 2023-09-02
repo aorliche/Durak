@@ -254,7 +254,7 @@ func ServeLocalFiles(dirs []string) {
 
 func main() {
     log.SetFlags(0)
-    ServeLocalFiles([]string{"", "/cards/backs", "/cards/fronts"})
+    ServeLocalFiles([]string{"", "/cards/backs", "/cards/fronts", "/images"})
     http.HandleFunc("/ws", Socket)
     log.Fatal(http.ListenAndServe(":8000", nil))
 }

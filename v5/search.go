@@ -116,10 +116,6 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
     if len(acts) == 0 {
         return nil, 0
     }
-    // If everyone else has already won, you lost
-    if cur.CheckGameOver() {
-        return make([]Action, 0), -1000
-    }
     // Default values should be 0 and nil
     np := len(cur.Hands)
     evals := make([]int, np*len(acts))
@@ -130,6 +126,11 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
         s.TakeAction(act);
         // Check win (getting rid of cards)
         if deckSize == 0 && len(s.Hands[me]) == 0 {
+            // If everyone else has already won, the final player with
+            // cards should feel bad
+            if s.CheckGameOver() {
+                return []Action{act}, 1000
+            }
             return []Action{act}, 20
         }
         // You don't get actions but opponents do

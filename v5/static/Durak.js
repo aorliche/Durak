@@ -15,6 +15,8 @@ let game;
 
 const cardImages = {};
 const cardBackImage = new Image;
+const shieldImage = new Image;
+const swordImage = new Image;
 
 function drawText(ctx, text, p, color, font, stroke) {
     ctx.save();
@@ -55,7 +57,7 @@ function rank(i) {
 
 function loadImages(cb) {
 	// Load images
-	const numImagesToLoad = 36+1;
+	const numImagesToLoad = 36+1+2;
 	let numImagesLoaded = 0;
 
 	function loadingComplete() {
@@ -77,6 +79,12 @@ function loadImages(cb) {
     
 	cardBackImage.addEventListener('load', onLoadFn);
 	cardBackImage.src = 'cards/backs/astronaut.png';
+
+    shieldImage.addEventListener('load', onLoadFn);
+    shieldImage.src = 'images/shield.png';
+    
+    swordImage.addEventListener('load', onLoadFn);
+    swordImage.src = 'images/sword.png';
 }
 
 function newGame(idOrPlayers, name) {
@@ -246,17 +254,67 @@ class Game {
         if (this.names) {
             switch (this.names.length) {
                 case 2: {
+                    console.log(this.attacker);
+                    if (this.attacker == 0) {
+                        ctx.drawImage(swordImage, 330, 380);
+                        ctx.drawImage(shieldImage, 330, 100);
+                    } else {
+                        ctx.drawImage(shieldImage, 330, 380);
+                        ctx.drawImage(swordImage, 330, 100);
+                    }
                     drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
                     drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
                     break;
                 }
                 case 3: {
+                    if (this.attacker == this.player) {
+                        ctx.drawImage(swordImage, 330, 380);
+                    }
+                    if (this.defender == this.player) {
+                        ctx.drawImage(shieldImage, 330, 380);
+                    }
+                    if (this.attacker == (this.player+1)%this.names.length) {
+                        ctx.drawImage(swordImage, 160, 100);
+                    } 
+                    if (this.defender == (this.player+1)%this.names.length) {
+                        ctx.drawImage(shieldImage, 160, 100);
+                    } 
+                    if (this.attacker == (this.player+2)%this.names.length) {
+                        ctx.drawImage(swordImage, 490, 100);
+                    }
+                    if (this.defender == (this.player+2)%this.names.length) {
+                        ctx.drawImage(shieldImage, 490, 100);
+                    }
                     drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
                     drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 230, y: 120}, 'black', 'bold 16px sans');
                     drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 560, y: 120}, 'black', 'bold 16px sans');
                     break;
                 }
                 case 4: {
+                    if (this.attacker == this.player) {
+                        ctx.drawImage(swordImage, 330, 380);
+                    }
+                    if (this.defender == this.player) {
+                        ctx.drawImage(shieldImage, 330, 380);
+                    }
+                    if (this.attacker == (this.player+1)%this.names.length) {
+                        ctx.drawImage(swordImage, 80, 100);
+                    } 
+                    if (this.defender == (this.player+1)%this.names.length) {
+                        ctx.drawImage(shieldImage, 80, 100);
+                    } 
+                    if (this.attacker == (this.player+2)%this.names.length) {
+                        ctx.drawImage(swordImage, 330, 100);
+                    }
+                    if (this.defender == (this.player+2)%this.names.length) {
+                        ctx.drawImage(shieldImage, 330, 100);
+                    }
+                    if (this.attacker == (this.player+3)%this.names.length) {
+                        ctx.drawImage(swordImage, 580, 100);
+                    }
+                    if (this.defender == (this.player+3)%this.names.length) {
+                        ctx.drawImage(shieldImage, 580, 100);
+                    }
                     drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
                     drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 150, y: 120}, 'black', 'bold 16px sans');
                     drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
@@ -443,6 +501,8 @@ class Game {
         }
         this.names = info.Names;
         this.board.init(info.State);
+        this.attacker = info.State.Attacker;
+        this.defender = info.State.Defender;
         // Human is player zero in the game, but some other number on the server
         // delta is this.player
         // Only client player is sent actions
