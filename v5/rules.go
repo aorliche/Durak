@@ -409,6 +409,7 @@ type Game struct {
     Memory *Memory
     Recording *Recording
     Players []string
+    Names []string
     joined []bool
     mutex sync.Mutex
     conns []*websocket.Conn
@@ -452,6 +453,7 @@ func InitGame(key int, players []string) *Game {
         },
         Recording: recording,
         Players: players,
+        Names: make([]string, numPlayers),
         joined: make([]bool, numPlayers),
         conns: make([]*websocket.Conn, numPlayers),
     }

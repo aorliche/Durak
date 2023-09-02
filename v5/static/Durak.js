@@ -79,12 +79,12 @@ function loadImages(cb) {
 	cardBackImage.src = 'cards/backs/astronaut.png';
 }
 
-function newGame(idOrPlayers) {
+function newGame(idOrPlayers, name) {
     if (!idOrPlayers && idOrPlayers !== 0) {
         alert('Bug');
         return;
     }
-    game = new Game(idOrPlayers);
+    game = new Game(idOrPlayers, name);
 }
 
 class Board {
@@ -118,7 +118,7 @@ class Board {
         if (this.plays.length == 0) {
             return;
         }
-        const cx = 400;
+        const cx = 500;
         const cy = 250; 
         const cw = scale*cardImages[0].naturalWidth;
         const cd = 10;
@@ -145,7 +145,7 @@ class Board {
 // TODO don't always be player zero 
 // TODO Redo this constructor for players and computers
 class Game {
-    constructor(idOrPlayers) {
+    constructor(idOrPlayers, name) {
         // You are always player 0 in the client
         // Must remap if necessary when talking to the server
         // join is useful for when id is not -1 for both players
@@ -163,7 +163,7 @@ class Game {
         // Connect to socket
         this.conn = new WebSocket(`ws://${location.host}/ws`);
         this.conn.onopen = () => {
-            const msg = {};
+            const msg = {Name: name};
             if (this.join) {
                 msg.Type = 'Join';
                 msg.Game = idOrPlayers;
@@ -219,12 +219,12 @@ class Game {
     }
 
     draw(ctx) {
-        ctx.clearRect(0, 0, 800, 500);
+        ctx.clearRect(0, 0, 1000, 500);
         this.layout();
         if (this.trump) this.trump.draw(ctx, true);
         if (this.deck) {
             this.deck.draw(ctx);
-            drawText(ctx, `${this.decksize}`, {x: 700, y: 120}, 'red', 'bold 48px sans', 'navy');
+            drawText(ctx, `${this.decksize}`, {x: 900, y: 240}, 'red', 'bold 48px sans', 'navy');
         }
         this.players.forEach(p => {
             p.draw(ctx);
@@ -234,10 +234,36 @@ class Game {
         const ilost = this.winners.length == this.players.length-1;
         if (iwon || ilost) {
             let text = iwon ? "You win!" : "You lose...";
-            drawText(ctx, `${text}`, {x: 400, y: 275}, 'red', 'bold 64px sans', 'navy');
+            drawText(ctx, `${text}`, {x: 500, y: 275}, 'red', 'bold 64px sans', 'navy');
         }
         if (this.dragging) {
             this.dragging.draw(ctx, true);
+        }
+        function nextName(names, start, i) {
+            const j = (start+i)%names.length;
+            return names[j];
+        }
+        if (this.names) {
+            switch (this.names.length) {
+                case 2: {
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
+                    break;
+                }
+                case 3: {
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 230, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 560, y: 120}, 'black', 'bold 16px sans');
+                    break;
+                }
+                case 4: {
+                    drawText(ctx, `${nextName(this.names, this.player, 0)}`, {x: 400, y: 400}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 1)}`, {x: 150, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 2)}`, {x: 400, y: 120}, 'black', 'bold 16px sans');
+                    drawText(ctx, `${nextName(this.names, this.player, 3)}`, {x: 650, y: 120}, 'black', 'bold 16px sans');
+                    break;
+                }
+            }
         }
     }
 
@@ -297,13 +323,13 @@ class Game {
 
     layout() {
         if (this.deck) {
-            this.deck.x = 700;
-            this.deck.y = 100;
+            this.deck.x = 900;
+            this.deck.y = 220;
             this.deck.theta = 3.14/2;
         }
         if (this.trump) {
-            this.trump.x = 700;
-            this.trump.y = 140;
+            this.trump.x = 900;
+            this.trump.y = 260;
             this.trump.theta = 0;
         }
     }
@@ -415,6 +441,7 @@ class Game {
         if (info.DeckSize == 0) {
             this.trump = null;
         }
+        this.names = info.Names;
         this.board.init(info.State);
         // Human is player zero in the game, but some other number on the server
         // delta is this.player
@@ -515,7 +542,7 @@ class Player {
         let cx, scaling, fudge, dx;
         switch (num) {
             case 2: {
-                cx = 400;
+                cx = 500;
                 scaling = 1;
                 fudge = 0;
                 dx = 40;
@@ -523,9 +550,9 @@ class Player {
             }
             case 3: {
                 switch (this.n) {
-                    case 0: cx = 400; break;
-                    case 1: cx = 267; break;
-                    case 2: cx = 534; break;
+                    case 0: cx = 500; break;
+                    case 1: cx = 330; break;
+                    case 2: cx = 660; break;
                 }
                 scaling = (this.n == 0) ? 1 : 0.7;
                 fudge = 40;
@@ -534,9 +561,9 @@ class Player {
             }
             case 4: {
                 switch (this.n) {
-                    case 0: case 2: cx = 400; break;
-                    case 1: cx = 200; break;
-                    case 3: cx = 600; break;
+                    case 0: case 2: cx = 500; break;
+                    case 1: cx = 250; break;
+                    case 3: cx = 750; break;
                 }
                 scaling = (this.n == 0) ? 1 : 0.4;
                 fudge = 50;
@@ -703,7 +730,7 @@ window.addEventListener('load', e => {
         if (!opt) {
             return;
         }
-        newGame(parseInt(opt.value));
+        newGame(parseInt(opt.value), $('#name').value);
     });
 
     canvas = $('#durak-canvas');

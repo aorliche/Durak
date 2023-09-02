@@ -28,6 +28,7 @@ func NextGameIdx() int {
 type Request struct {
    Type string 
    Game int
+   Name string
    Players []string
    Action *Action
 }
@@ -39,6 +40,7 @@ type GameInfo struct {
     Actions [][]Action
     DeckSize int
     Winners []int
+    Names []string
 }
 
 func (game *Game) MakeGameInfo(player int) *GameInfo {
@@ -51,6 +53,7 @@ func (game *Game) MakeGameInfo(player int) *GameInfo {
         Actions: acts,
         DeckSize: len(game.Deck),
         Winners: game.Recording.Winners,
+        Names: game.Names,
     }
 }
 
@@ -135,11 +138,15 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 }
                 player = 0
                 game := InitGame(NextGameIdx(), req.Players)
+                game.Names[0] = req.Name
                 games[game.Key] = game
+                j := 0
                 for i,typ := range req.Players {
                     if typ != "Human" {
+                        j += 1
                         game.StartComputer(typ, i)
                         game.joined[i] = true
+                        game.Names[i] = fmt.Sprintf("%s%d", typ, j)
                     }
                 }
                 game.conns[0] = conn
@@ -159,6 +166,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 for i := 1; i < len(game.joined); i++ {
                     if !game.joined[i] {
                         player = i
+                        game.Names[i] = req.Name
                     }
                 }
                 if player == -1 {
@@ -167,7 +175,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 }
                 game.joined[player] = true
                 game.conns[player] = conn
-                SendInfo(player, game)
+                game.SendInfoHumans()
             }
             case "Action": {
                 game := games[req.Game]

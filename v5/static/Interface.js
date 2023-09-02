@@ -55,6 +55,15 @@ window.addEventListener("load", function(){
             alert('Must have at least 2 players');
             return;
         }
-        newGame(players);
+        const name = $('#name').value;
+        if (!name) {
+            alert('Must have a name');
+            return;
+        }
+        if (name == 'Easy' || name == 'Medium') {
+            alert('Name must not be a computer difficulty');
+            return;
+        }
+        newGame(players, name);
     })
 });
