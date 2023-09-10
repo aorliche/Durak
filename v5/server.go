@@ -167,6 +167,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     if !game.joined[i] {
                         player = i
                         game.Names[i] = req.Name
+                        break
                     }
                 }
                 if player == -1 {
@@ -183,7 +184,11 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                     log.Println("No such game", req.Game)
                     continue
                 }
-                if game.Players[req.Action.Player] == "Human" && !game.joined[req.Action.Player] {
+                if player == -1 || player > len(game.joined) {
+                    log.Println("Invalid player")
+                    continue
+                }
+                if game.Players[player] == "Human" && !game.joined[player] {
                     log.Println("Player not joined")
                     continue
                 }

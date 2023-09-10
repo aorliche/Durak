@@ -545,7 +545,6 @@ const [PlayVerb, CoverVerb, ReverseVerb, PassVerb, PickupVerb, DeferVerb] = [0,1
 class Action {
     constructor(act) {
         this.orig = act;
-        this.pidx = game.join ? 1-act.Player : act.Player;
         this.verb = act.Verb;
         this.card = null;
         if ([PlayVerb, CoverVerb, ReverseVerb].includes(act.Verb)) {
