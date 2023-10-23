@@ -6,16 +6,19 @@ import (
     "time" 
 )
 
-// Empriically chosen
+// Emprically chosen
 func (state *GameState) DepthLimit() int {
-    nCards := len(state.Hands[0]) + len(state.Hands[1]);
-    if nCards > 18 {
+    nCards := 0
+    for i := 0; i < len(state.Hands); i++ {
+        nCards += len(state.Hands[i])
+    }
+    if nCards > 20 {
         return 6
-    } else if nCards > 12 {
+    } else if nCards > 14 {
         return 9
-    } else if nCards > 10 {
+    } else if nCards > 12 {
         return 10
-    } else if nCards > 8{
+    } else if nCards > 10 {
         return 11
     } else {
         return 16
