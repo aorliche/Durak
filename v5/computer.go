@@ -52,7 +52,7 @@ func (game *Game) MakeMediumPlay(player int) Action {
         state = game.State.Clone()
     }
     game.mutex.Unlock()
-    c, r := state.EvalNode(state, player, 0, 0)
+    c, r := state.EvalNode(state, player, 0, 0, nil)
     if len(c) > 0 {
         act = c[len(c)-1]
         if act.Verb != DeferVerb {

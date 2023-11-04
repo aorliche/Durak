@@ -25,11 +25,21 @@ func (state *GameState) DepthLimit() int {
     }
 }
 
-// Default parameters for eval
-/*type EvalParams struct {
+// Tunable parameters
+type EvalParams struct {
     CardValueTrumpBonus int
     CardValueCardOffset int
-}*/
+    HandSizePickingUpMult float64
+    HandSizeSmallDeckLimit int
+    HandSizeSmallDeckMult float64
+    SmallDeckLimit int
+    NotLastWinnerValue int
+    HandMult float64
+    KnownMult float64
+}
+
+// Default parameters for eval
+var defaultEvalParams = EvalParams {6, 4, 2.0, 3, 2.0, 2, 20, 2.0, 1.0}
 
 func Contains(card Card, cards []Card) bool {
     for _, c := range cards {
@@ -40,104 +50,91 @@ func Contains(card Card, cards []Card) bool {
     return false
 }
 
-func (state *GameState) CardValue(card Card) int {
+func (state *GameState) CardValue(card Card, params *EvalParams) float64 {
     if card == UNK_CARD {
         return 0
     }
     if card.Suit() == state.Trump.Suit() {
-        return 6 + card.Rank()
+        return float64(params.CardValueTrumpBonus + card.Rank())
     }
-    return card.Rank() - 4
+    return float64(card.Rank() - params.CardValueCardOffset)
 }
 
-func (orig *GameState) EvalTable(cur *GameState, me int) int {
-    v := 0
+func (orig *GameState) EvalTable(cur *GameState, me int, params *EvalParams) float64 {
+    v := float64(0)
     // Cards you've played
     for _, card := range orig.Hands[me] {
         if Contains(card, cur.Hands[me]) {
             continue
         }
-        v -= orig.CardValue(card);
+        v -= float64(orig.CardValue(card, params))
     }
     // Cards opponents have played on the table
     for i, _ := range cur.Plays {
         c1 := cur.Plays[i]
         c2 := cur.Covers[i]
         if !Contains(c1, orig.Hands[me]) {
-            v += orig.CardValue(c1)
+            v += float64(orig.CardValue(c1, params))
         }
         if c2 != UNK_CARD && !Contains(c2, orig.Hands[me]) {
-            v += orig.CardValue(c2)
+            v += float64(orig.CardValue(c2, params))
         }
     }
     return v
 }
 
-func (orig *GameState) EvalHandSizes(cur *GameState, me int) int {
-    v := 0
-    div := len(cur.Hands)-1
+func (orig *GameState) EvalHandSizes(cur *GameState, me int, params *EvalParams) float64 {
+    v := float64(0)
+    div := float64(len(cur.Hands)-1)
     for i := 0; i < len(cur.Hands); i++ {
         if i == me {
-            v -= len(cur.Hands[me])
+            v -= float64(len(cur.Hands[me]))
         } else {
-            v += len(cur.Hands[i])/div
+            v += float64(len(cur.Hands[i]))/div
         }
     }
     if cur.PickingUp {
-        u := len(cur.Plays) + NumNotUnk(cur.Covers)
-        u *= 2
+        u := float64(len(cur.Plays) + NumNotUnk(cur.Covers))
+        u *= params.HandSizePickingUpMult
         if cur.Defender == me {
             v -= u
         } else {
             v += u/div
         }
     }
-    if len(cur.gamePtr.Deck) < 3 {
-        v *= 2
+    if len(cur.gamePtr.Deck) < params.HandSizeSmallDeckLimit {
+        v *= params.HandSizeSmallDeckMult
     }
     return v
 }
 
 // Will only work once cards are known
-func (orig *GameState) EvalKnownCards(cur *GameState, me int) int {
-    v := 0
-    div := len(cur.Hands)-1
+func (orig *GameState) EvalKnownCards(cur *GameState, me int, params *EvalParams) float64 {
+    v := float64(0)
+    div := float64(len(cur.Hands)-1)
     for i := 0; i < len(cur.Hands); i++ {
         for _, card := range cur.Hands[i] {
             if i == me {
-                v += orig.CardValue(card)
+                v += float64(orig.CardValue(card, params))
             } else {
-                v -= orig.CardValue(card)/div
+                v -= float64(orig.CardValue(card, params))/div
             }
         }
     }
     return v
 }
 
-func (orig *GameState) Eval(cur *GameState, me int) int {
-    a := orig.EvalKnownCards(cur, me)
-    b := 2*orig.EvalHandSizes(cur, me)
-    c := orig.EvalTable(cur, me)
+func (orig *GameState) Eval(cur *GameState, me int, params *EvalParams) float64 {
+    a := params.KnownMult*orig.EvalKnownCards(cur, me, params)
+    b := params.HandMult*orig.EvalHandSizes(cur, me, params)
+    c := orig.EvalTable(cur, me, params)
     return a + b + c
 }
 
-// Applied on end of midgame hand or unknown card play
-/*func (cur *GameState) HandsPenalty(me int) int {
-    v := 0
-    for i := 0; i < len(cur.Hands); i++ {
-        if len(cur.Hands[i]) <= 4 {
-            continue
-        }
-        if i == me {
-            v -= len(cur.Hands[me])-4
-        } else {
-            v += len(cur.Hands[i])-4
-        }
+func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, params *EvalParams) ([]Action, float64) {
+    if params == nil {
+        params = &defaultEvalParams
     }
-    return v
-}*/
-
-func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]Action, int) {
     dlimAdj := dlim
     if depth == 0 {
         cur = orig.Clone()
@@ -155,7 +152,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
         return nil, 0
     }
     if depth > dlimAdj {
-        return make([]Action, 0), orig.Eval(cur, me)
+        return make([]Action, 0), orig.Eval(cur, me, params)
     }
     acts := cur.PlayerActions(me)
     // If you have no actions, return
@@ -164,7 +161,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
     }
     // Default values should be 0 and nil
     np := len(cur.Hands)
-    evals := make([]int, np*len(acts))
+    evals := make([]float64, np*len(acts))
     chains := make([][]Action, np*len(acts))
     playedUnkCard := false
     for i, act := range acts {
@@ -177,7 +174,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
             if s.CheckGameOver() {
                 return []Action{act}, 1000
             }
-            return []Action{act}, 20
+            return []Action{act}, float64(params.NotLastWinnerValue)
         }
         // You don't get actions but opponents do
         if act.Verb == DeferVerb {
@@ -185,7 +182,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
                 if j == me {
                     continue
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -194,7 +191,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
         // End hand
         } else if act.Verb == PassVerb {
             // Go to the end of game
-            if deckSize == 0 {
+            if deckSize <= params.SmallDeckLimit {
                 // Defender picking up
                 // All others can play
                 // NOTE: Action is Pass, so cur.PickingUp is valid
@@ -204,7 +201,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
                         if j == cur.Defender {
                             continue
                         }
-                        c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
+                        c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
                         if c != nil {
                             evals[np*i+j] = r
                             chains[np*i+j] = append(c, act)
@@ -215,7 +212,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
                 } else {
                     for j := 0; j < np; j++ {
                         if j != me {
-                            c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
+                            c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
                             if c != nil {
                                 evals[np*i+j] = r
                                 chains[np*i+j] = append(c, act)
@@ -225,14 +222,14 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
                 }
             // Go per-hand
             } else {
-                return []Action{act}, orig.Eval(cur, me)
+                return []Action{act}, orig.Eval(cur, me, params)
             }
         // Unknown card play or cover
         // Only check one mystery card
         } else if act.Card == UNK_CARD && (act.Verb == PlayVerb || act.Verb == CoverVerb) {
             if !playedUnkCard {
                 playedUnkCard = true
-                evals[np*i+me] = orig.Eval(s, me)
+                evals[np*i+me] = orig.Eval(s, me, params)
                 chains[np*i+me] = []Action{act}
             } 
         // Pickup - Opponents' moves will determine evaluation
@@ -242,7 +239,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
                 if j == me {
                     continue
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -251,7 +248,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
         // Ordinary action
         } else {
             for j := 0; j < np; j++ {
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj)
+                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -259,7 +256,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int) ([]
             }
         }
     }
-    best := -10000
+    best := -10000.0
     besti := 0
     for i, _ := range acts {
         for j := 0; j < np; j++ {
