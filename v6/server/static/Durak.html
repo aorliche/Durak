@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Durak</title>
+	<link rel="stylesheet" href="Durak.css">
+    <script src="Durak.js"></script>
+    <script src="Interface.js"></script>
+</head>
+<body>
+    <div id='durak'>
+        <div>
+            <h1>Computer Durak</h1>
+            <p>Don't be the last one holding cards!</p>
+            <div id='durak-game'>
+                <div id='top'>
+                    <div id='pickingup' style='display:none'>Opponent picking up</div>
+                </div>
+                <canvas id='durak-canvas' width='1000' height='500'></canvas>
+                <div id='bottom'>
+                    <button id='pass'>Pass</button>
+                    <button id='pickup'>Pickup</button>
+                </div>
+            </div>
+        </div>
+        <div id='game-controls'>
+            <div>
+                <label for='name'>My Name:</label>
+                <input type='text' name='name' id='name'>
+            </div>
+            <div id='new-game'>
+                <h3>New Game</h3>
+                <button id='human'>Add Human</button>
+                <button id='easy'>Add Easy</button>
+                <button id='medium'>Add Medium</button>
+                <hr>
+                <div id='players'>
+                    <div id='number'>1 Players</div>
+                    <div class='player'><div class='type human'>Human</div></div>
+                </div>
+                <button id='start'>Start Game</button>
+            </div>
+            <div>
+                <h3>Open Games</h3>
+                <select name='durak-list-select' multiple></select><br>
+                <button id='join'>Join Game</button>
+            </div>
+            <div id='links'>
+                <a href='#qs' id='qs'>Quick Start</a> | 
+                <a href='https://en.wikipedia.org/wiki/Durak'>Rules</a> | 
+                <a href='https://aorliche.github.io/'>About</a>
+            </div>
+            <div id='qs-div' style='display:none'>
+                <ul>
+                    <li>Drag cards from your hand to the board to play them</li>
+                    <li>Drag cards from your hand on top of another card to defend</li>
+                    <li>Drag cards from your hand to the board to reverse</li>
+                    <li>Click pass or pickup as appropriate</li>
+                    <li>Trumps can beat any non-trump.</li>
+                    <li>Get rid of your cards!</li>
+                </li>
+            </div>
+        </div>
+    </div>
+    <div id='footer'>
+        <p>&#169; 2023 Anton Orlichenko<br></p>
+    </div>
+</body>
+</html>

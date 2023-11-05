@@ -1,0 +1,99 @@
+#durak-canvas {
+    border: 1px solid black;
+}
+#top {
+    position: relative;
+    font-size: 18px;
+    color: red;
+    font-weight: bold;
+    height: 0px;
+    top: 10px;
+    left: 10px;
+    z-index: 1;
+}
+#bottom {
+    position: relative;
+    font-size: 18px;
+    width: 120px;
+    height: 0px;
+    left: 10px;
+    top: -40px;
+}
+#durak {
+    display: flex;
+}
+#game-controls {
+    margin-left: 20px;
+    width: 280px;
+}
+#game-controls button {
+}
+#game-controls .player .type {
+    display: inline-block;
+    border: 1px solid grey;
+    border-radius: 3px;
+    padding: 2px;
+    width: 100px;
+    text-align: center;
+    margin-top: 3px;
+}
+.player .human, #human {
+    background-color: #afa;
+    border-width: 1px;
+}
+#human:hover {
+    background-color: #8f8;
+}
+.player .easy, #easy {
+    background-color: #ffa;
+    border-width: 1px;
+}
+#easy:hover {
+    background-color: #ff5;
+}
+.player .medium, #medium {
+    background-color: #faa;
+    border-width: 1px;
+}
+#medium:hover {
+    background-color: #f99;
+}
+#number {
+    float: right;
+}
+.player button {
+    margin-left: 5px;
+}
+#start {
+    margin-top: 20px;
+}
+#players {
+    min-height: 130px;
+}
+#links {
+    margin-top: 20px;
+}
+#footer {
+    margin-top: 20px;
+    text-align: center;
+}
+select[name='durak-list-select'] {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 280px;
+    min-height: 200px;
+}
+select[name='durak-num-players'] {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+#durak-memory {
+    margin-left: 20px;
+}
+#durak-memory img {
+    width: 40px;
+    padding: 2px;
+}
+#discard img {
+    opacity: 50%;
+}
