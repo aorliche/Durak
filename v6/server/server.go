@@ -146,7 +146,8 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 for i,typ := range req.Players {
                     if typ != "Human" {
                         j += 1
-                        game.StartComputer(typ, i, func (game *Game) {
+                        game.StartComputer(typ, i, nil,
+                        func (game *Game) {
                             SendInfoHumans(game)
                         },
                         func (game *Game) {

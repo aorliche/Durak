@@ -39,7 +39,7 @@ type EvalParams struct {
 }
 
 // Default parameters for eval
-var defaultEvalParams = EvalParams {6, 4, 2.0, 3, 2.0, 2, 20, 2.0, 1.0}
+var DefaultEvalParams = EvalParams {6, 4, 2.0, 3, 2.0, 2, 20, 2.0, 1.0}
 
 func Contains(card Card, cards []Card) bool {
     for _, c := range cards {
@@ -133,7 +133,7 @@ func (orig *GameState) Eval(cur *GameState, me int, params *EvalParams) float64 
 
 func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, params *EvalParams) ([]Action, float64) {
     if params == nil {
-        params = &defaultEvalParams
+        params = &DefaultEvalParams
     }
     dlimAdj := dlim
     if depth == 0 {

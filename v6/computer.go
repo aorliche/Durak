@@ -38,7 +38,7 @@ func (game *Game) MakeEasyPlay(player int) Action {
     return act
 }
 
-func (game *Game) MakeMediumPlay(player int) Action {
+func (game *Game) MakeMediumPlay(player int, params *EvalParams) Action {
     var act Action
     game.Mutex.Lock()
     if game.CheckGameOver() {
@@ -52,7 +52,7 @@ func (game *Game) MakeMediumPlay(player int) Action {
         state = game.State.Clone()
     }
     game.Mutex.Unlock()
-    c, r := state.EvalNode(state, player, 0, 0, nil)
+    c, r := state.EvalNode(state, player, 0, 0, params)
     if len(c) > 0 {
         act = c[len(c)-1]
         if act.Verb != DeferVerb {
@@ -66,7 +66,10 @@ func (game *Game) MakeMediumPlay(player int) Action {
 }
 
 // comp is "Easy" or "Medium"
-func (game *Game) StartComputer(comp string, player int, actionCb func (*Game), gameOverCb func (*Game)) {
+func (game *Game) StartComputer(comp string, player int, params *EvalParams, actionCb func (*Game), gameOverCb func (*Game)) {
+    if params == nil {
+        params = &DefaultEvalParams
+    }
     go func() {
         for {
             if game.CheckGameOver() {
@@ -77,7 +80,7 @@ func (game *Game) StartComputer(comp string, player int, actionCb func (*Game), 
             if comp == "Easy" {
                 act = game.MakeEasyPlay(player)
             } else if comp == "Medium" {
-                act = game.MakeMediumPlay(player)
+                act = game.MakeMediumPlay(player, params)
             }
             game.CheckGameOver()
             // Send info to human players

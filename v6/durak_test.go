@@ -123,9 +123,9 @@ func TestMaskUnknownCard_WithKnown(t *testing.T) {
 
 func TestThreeMediumComputerRandomGame(t *testing.T) {
     game := InitGame(0, []string{"Medium", "Medium", "Medium"})
-    game.StartComputer("Medium", 0, nil, nil)
-    game.StartComputer("Medium", 1, nil, nil)
-    game.StartComputer("Medium", 2, nil, nil)
+    game.StartComputer("Medium", 0, nil, nil, nil)
+    game.StartComputer("Medium", 1, nil, nil, nil)
+    game.StartComputer("Medium", 2, nil, nil, nil)
     for !game.CheckGameOver() {
         time.Sleep(1000 * time.Millisecond)
         acts := make([]int, 3)
