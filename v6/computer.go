@@ -52,12 +52,12 @@ func (game *Game) MakeMediumPlay(player int, params *EvalParams) Action {
         state = game.State.Clone()
     }
     game.Mutex.Unlock()
-    c, r := state.EvalNode(state, player, 0, 0, params)
+    c, _ := state.EvalNode(state, player, 0, 0, params)
     if len(c) > 0 {
         act = c[len(c)-1]
-        if act.Verb != DeferVerb {
+        /*if act.Verb != DeferVerb {
             log.Println(r, act.ToStr())
-        }
+        }*/
         game.Mutex.Lock()
         game.TakeAction(act)
         game.Mutex.Unlock()
@@ -66,12 +66,16 @@ func (game *Game) MakeMediumPlay(player int, params *EvalParams) Action {
 }
 
 // comp is "Easy" or "Medium"
-func (game *Game) StartComputer(comp string, player int, params *EvalParams, actionCb func (*Game), gameOverCb func (*Game)) {
+func (game *Game) StartComputer(comp string, player int, params *EvalParams, actionCb func (*Game), gameOverCb func (*Game)) *bool {
     if params == nil {
         params = &DefaultEvalParams
     }
+    kill := false
     go func() {
         for {
+            if kill {
+                break
+            }
             if game.CheckGameOver() {
                 break
             }
@@ -95,4 +99,5 @@ func (game *Game) StartComputer(comp string, player int, params *EvalParams, act
             }
         }
     }()
+    return &kill
 }

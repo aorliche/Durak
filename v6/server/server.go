@@ -45,6 +45,20 @@ type GameInfo struct {
     Names []string
 }
 
+/*var params = &EvalParams {
+    CardValueTrumpBonus: 3,
+    CardValueCardOffset: 9,
+    HandSizePickingUpMult: 5.4,
+    HandSizeSmallDeckLimit: 3,
+    HandSizeSmallDeckMult: 2.1,
+    SmallDeckLimit: 8,
+    NotLastWinnerValue: 20,
+    HandMult: 1.0,
+    KnownMult: 4.6,
+}*/
+
+var params = (*EvalParams)(nil)
+
 func MakeGameInfo(game *Game, player int) *GameInfo {
     acts := make([][]Action, len(game.State.Hands)) 
     acts[player] = game.State.PlayerActions(player)
@@ -146,7 +160,7 @@ func Socket(w http.ResponseWriter, r *http.Request) {
                 for i,typ := range req.Players {
                     if typ != "Human" {
                         j += 1
-                        game.StartComputer(typ, i, nil,
+                        game.StartComputer(typ, i, params,
                         func (game *Game) {
                             SendInfoHumans(game)
                         },

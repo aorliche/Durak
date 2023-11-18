@@ -6,3 +6,7 @@
 !.gitignore
 .vscode
 !*.pred
+*.durak
+*.test
+*.out
+*.kate-swp
