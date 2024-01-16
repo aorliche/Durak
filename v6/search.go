@@ -131,38 +131,51 @@ func (orig *GameState) Eval(cur *GameState, me int, params *EvalParams) float64 
     return a + b + c
 }
 
-func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, params *EvalParams) ([]Action, float64) {
+func (orig *GameState) EvalNode(me int, params *EvalParams) ([]Action, float64) {
+    var chain []Action
+    var res float64
+    node := orig.Clone()
+    node.start = time.Now() 
+    for depth := 1; depth <= 20; depth++ {
+        acts, v, ok := node.EvalNodeDeep(node.Clone(), me, depth, params)
+        if !ok {
+            break
+        } else {
+            if acts != nil {
+                chain = acts
+                res = v
+            }
+        }
+    }
+    return chain, res
+}
+
+func (orig *GameState) EvalNodeDeep(cur *GameState, me int, depth int, params *EvalParams) ([]Action, float64, bool) {
     if params == nil {
         params = &DefaultEvalParams
     }
-    dlimAdj := dlim
-    if depth == 0 {
-        cur = orig.Clone()
-        dlimAdj = orig.DepthLimit()
-        orig.start = time.Now()
-    }
     deckSize := len(cur.gamePtr.Deck)
-    // Iterative crappening
+    // Exceeded time limit
     elapsed := time.Now().Sub(orig.start)
-    if elapsed.Seconds() > 2 {
-        dlimAdj -= (int(elapsed.Seconds()) - 2)/2
+    if elapsed.Seconds() > 5 {
+        return nil, 0, false
     }
     // You've already won and don't take actions
     if cur.Won[me] {
-        return nil, 0
+        return nil, 0, true
     }
-    if depth > dlimAdj {
-        return make([]Action, 0), orig.Eval(cur, me, params)
+    if depth == 0 {
+        return make([]Action, 0), orig.Eval(cur, me, params), true
     }
     acts := cur.PlayerActions(me)
     // If you have no actions, return
     if len(acts) == 0 {
-        return nil, 0
+        return nil, 0, true
     }
     // If it's depth 0 and you have 1 action, just take that action (don't waste time evaluating)
     // Note that oftentimes you have a Defer action in addition to bad ones
     if depth == 0 && len(acts) == 1 {
-        return []Action{acts[0]}, 0
+        return []Action{acts[0]}, 0, true
     }
     // Default values should be 0 and nil
     np := len(cur.Hands)
@@ -177,9 +190,9 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
             // If everyone else has already won, the final player with
             // cards should feel bad
             if s.CheckGameOver() {
-                return []Action{act}, 1000
+                return []Action{act}, 1000, true
             }
-            return []Action{act}, float64(params.NotLastWinnerValue)
+            return []Action{act}, float64(params.NotLastWinnerValue), true
         }
         // You don't get actions but opponents do
         if act.Verb == DeferVerb {
@@ -187,7 +200,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
                 if j == me {
                     continue
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
+                c, r, finished := orig.EvalNodeDeep(s, j, depth-1, params)
+                if !finished {
+                    return nil, 0, false
+                }
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -206,7 +222,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
                         if j == cur.Defender {
                             continue
                         }
-                        c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
+                        c, r, finished := orig.EvalNodeDeep(s, j, depth-1, params)
+                        if !finished {
+                            return nil, 0, false
+                        }
                         if c != nil {
                             evals[np*i+j] = r
                             chains[np*i+j] = append(c, act)
@@ -217,7 +236,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
                 } else {
                     for j := 0; j < np; j++ {
                         if j != me {
-                            c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
+                            c, r, finished := orig.EvalNodeDeep(s, j, depth-1, params)
+                            if !finished {
+                                return nil, 0, false
+                            }
                             if c != nil {
                                 evals[np*i+j] = r
                                 chains[np*i+j] = append(c, act)
@@ -227,7 +249,7 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
                 }
             // Go per-hand
             } else {
-                return []Action{act}, orig.Eval(cur, me, params)
+                return []Action{act}, orig.Eval(cur, me, params), true
             }
         // Unknown card play or cover
         // Only check one mystery card
@@ -244,7 +266,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
                 if j == me {
                     continue
                 }
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
+                c, r, finished := orig.EvalNodeDeep(s, j, depth-1, params)
+                if !finished {
+                    return nil, 0, false
+                }
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -253,7 +278,10 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
         // Ordinary action
         } else {
             for j := 0; j < np; j++ {
-                c, r := orig.EvalNode(s, j, depth+1, dlimAdj, params)
+                c, r, finished := orig.EvalNodeDeep(s, j, depth-1, params)
+                if !finished {
+                    return nil, 0, false
+                }
                 if c != nil {
                     evals[np*i+j] = r
                     chains[np*i+j] = append(c, act)
@@ -278,6 +306,6 @@ func (orig *GameState) EvalNode(cur *GameState, me int, depth int, dlim int, par
             }
         }
     }
-    return chains[besti], best
+    return chains[besti], best, true
 }
 

@@ -52,12 +52,10 @@ func (game *Game) MakeMediumPlay(player int, params *EvalParams) Action {
         state = game.State.Clone()
     }
     game.Mutex.Unlock()
-    c, _ := state.EvalNode(state, player, 0, 0, params)
+    c, r := state.EvalNode(player, params)
     if len(c) > 0 {
         act = c[len(c)-1]
-        /*if act.Verb != DeferVerb {
-            log.Println(r, act.ToStr())
-        }*/
+        log.Println(r, act.ToStr())
         game.Mutex.Lock()
         game.TakeAction(act)
         game.Mutex.Unlock()
