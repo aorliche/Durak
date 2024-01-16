@@ -157,7 +157,7 @@ func (orig *GameState) EvalNodeDeep(cur *GameState, me int, depth int, params *E
     deckSize := len(cur.gamePtr.Deck)
     // Exceeded time limit
     elapsed := time.Now().Sub(orig.start)
-    if elapsed.Seconds() > 5 {
+    if elapsed.Seconds() > 3 {
         return nil, 0, false
     }
     // You've already won and don't take actions
